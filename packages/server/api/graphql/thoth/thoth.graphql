@@ -1,0 +1,37 @@
+type ThothConnectionStatus {
+  ok: Boolean!
+  endpoint: String!
+  authMode: String!
+  message: String!
+}
+
+type ThothWorkPayloadPreview {
+  workType: String!
+  workStatus: String!
+  imprintId: String!
+  reference: String
+  doi: String
+  publicationDate: String
+  landingPage: String
+  license: String
+  copyrightHolder: String
+  generalNote: String
+  coverCaption: String
+}
+
+type ThothWorkSyncResult {
+  ok: Boolean!
+  workId: ID
+  operation: String!
+  message: String!
+  connection: ThothConnectionStatus!
+  payload: ThothWorkPayloadPreview!
+}
+
+extend type Query {
+  thothConnectionStatus: ThothConnectionStatus!
+}
+
+extend type Mutation {
+  thothSyncWork(bookId: ID!, dryRun: Boolean = true): ThothWorkSyncResult!
+}

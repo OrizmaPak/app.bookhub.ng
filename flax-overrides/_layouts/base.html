@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ metadata.title }} - {{ metadata.authors }}</title>
+  <link rel="icon" type="image/png" href="https://res.cloudinary.com/dva7ofiuu/image/upload/v1761577308/bookhub_bmehkx.png" />    {% set css %} {% include "styles/base.css" %} {% include
+    "styles/stylesheet.css" %} {% endset %}
+    <style>
+      {{ css | cssmin | safe }}
+    </style>
+    <style>
+      /* Force template colors to follow light/dark theme tokens */
+      :root.theme-light #content,
+      :root.theme-light #content :not(img):not(svg):not(video):not(canvas),
+      :root.theme-dark #content,
+      :root.theme-dark #content :not(img):not(svg):not(video):not(canvas) {
+        color: var(--color-text) !important;
+      }
+
+      :root.theme-light #content,
+      :root.theme-dark #content {
+        background: transparent !important;
+      }
+
+      :root.theme-light #content :not(img):not(svg):not(video):not(canvas),
+      :root.theme-dark #content :not(img):not(svg):not(video):not(canvas) {
+        background-color: transparent !important;
+        border-color: var(--color-border) !important;
+      }
+
+      :root.theme-light #content a,
+      :root.theme-dark #content a {
+        color: var(--color-link) !important;
+      }
+
+      :root.theme-light #content a:hover,
+      :root.theme-dark #content a:hover {
+        color: var(--color-link-hover) !important;
+      }
+    </style>
+    <!--  -->
+    {% if metadata.preview %}
+    <script>
+      window.onload = function () {
+        try {
+          if (window.top === window.self) {
+            throw new Error()
+          }
+        } catch (e) {
+          // document.body.innerHTML = "";
+          // alert(
+          //   "This book preview can be viewed only inside Ketty's previewer page. Ask the owner to publish the book in order for it to be publicly accessible."
+          // );
+        }
+      }
+    </script>
+    {% endif %}
+  </head>
+  <body>
+    <a href="#main-content" id="skip-link">Skip navigation</a>
+    {{ customRunningBlocks.header | safe }}
+    <div class="book-content with-sidebar">
+      <aside id="sidebar" class="toc collapsed">
+        <div class="box">
+          <button
+            aria-controls="sidebar"
+            aria-expanded="false"
+            aria-label="Toggle table of content"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              width="30px"
+              height="30px"
+              style="width: 30px; height: 30px"
+            >
+              <path
+                d="M20 7L4 7"
+                stroke="#1C274C"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              ></path>
+              <path
+                d="M20 12L4 12"
+                stroke="#1C274C"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              ></path>
+              <path
+                d="M20 17L4 17"
+                stroke="#1C274C"
+                stroke-width="1.5"
+                stroke-linecap="round"
+              ></path>
+            </svg>
+          </button>
+        </div>
+                                <nav class="menu box" data-menu-root>
+        <div class="menu-panel is-active" data-panel="root">
+          <ul role="list" class="non-nested">
+            <li class="menu-item">
+              <button type="button" class="menu-action" data-menu="search">Search</button>
+            </li>
+            <li class="menu-item">
+              <button type="button" class="menu-action" data-target="chapters">Chapter List</button>
+            </li>
+            <li class="menu-item">
+              <button type="button" class="menu-action" data-target="share">Share</button>
+            </li>
+            <li class="menu-item">
+              <button type="button" class="menu-action" data-menu="settings">Settings</button>
+            </li>
+          </ul>
+          <div class="menu-coming-soon" aria-live="polite" hidden></div>
+        </div>
+        <div class="menu-panel" data-panel="share">
+          <div class="menu-panel__header">
+            <span>Share</span>
+            <button type="button" class="menu-back" data-target="root" aria-label="Back">Back</button>
+          </div>
+          <div class="share-pick" role="group" aria-label="Share options">
+            <button type="button" class="menu-action" data-share-scope-target="book">1. Share entire book</button>
+            <button type="button" class="menu-action" data-share-scope-target="page">2. Share this page</button>
+          </div>
+        </div>
+        <div class="menu-panel" data-panel="share-detail">
+          <div class="menu-panel__header">
+            <span class="share-detail-title">Share</span>
+            <button type="button" class="menu-back" data-target="share" aria-label="Back">Back</button>
+          </div>
+          <div class="share-url-wrap">
+            <input type="text" class="share-url" readonly aria-label="Share URL" />
+          </div>
+          <div class="share-icons">
+            <button type="button" class="share-icon-btn" data-share-action="copy" aria-label="Copy link">
+              <span class="share-icon icon-copy">🔗</span><span>Copy</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="native" aria-label="Native share">
+              <span class="share-icon icon-native">📤</span><span>Share</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="whatsapp" aria-label="Share on WhatsApp">
+              <span class="share-icon icon-whatsapp">W</span><span>WhatsApp</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="x" aria-label="Share on X">
+              <span class="share-icon icon-x">X</span><span>X</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="facebook" aria-label="Share on Facebook">
+              <span class="share-icon icon-facebook">f</span><span>Facebook</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="linkedin" aria-label="Share on LinkedIn">
+              <span class="share-icon icon-linkedin">in</span><span>LinkedIn</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="telegram" aria-label="Share on Telegram">
+              <span class="share-icon icon-telegram">▶</span><span>Telegram</span>
+            </button>
+            <button type="button" class="share-icon-btn" data-share-action="email" aria-label="Share via email">
+              <span class="share-icon icon-email">✉</span><span>Email</span>
+            </button>
+          </div>
+          <div class="share-status" aria-live="polite" hidden></div>
+        </div>
+        <div class="menu-panel" data-panel="chapters">
+          <div class="menu-panel__header">
+            <span>Chapter List</span>
+            <button type="button" class="menu-back" data-target="root" aria-label="Back">Back</button>
+          </div>
+          <div class="submenu-search">
+            <input
+              type="search"
+              class="chapter-search-input"
+              placeholder="Search chapters"
+              aria-label="Search chapters"
+            />
+          </div>
+          <div class="chapter-list">
+            {% include "toc.njk" %}
+          </div>
+        </div>
+      </nav>
+      <div class="theme-toggle" role="group" aria-label="Theme">
+        <button type="button" id="theme-toggle" aria-label="Switch to dark mode" title="Toggle theme">
+          <span class="icon icon-sun" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path>
+            </svg>
+          </span>
+          <span class="icon icon-moon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </span>
+        </button>
+      </div>
+      
+      </aside>
+      <main id="main-content" tabindex="-1" role="main">
+          <button class="mobile-menu-button" type="button" aria-label="Open menu">Menu</button>
+          {% include "navigation.njk" %}
+        <section id="content" class="box">
+          {% block content %} {{ content | safe }} {% endblock %}
+        </section>
+        <!--  -->
+        {% block footer %} {% endblock %}
+      </main>
+    </div>
+    {{ customRunningBlocks.footer | safe }}
+    <script src="/scripts/toc.js"></script>
+    <script>
+      (function () {
+        var storageKey = 'flax-theme'
+        var uiStorageKey = 'flax-ui-mode'
+        var root = document.documentElement
+
+        function init() {
+          var toggle = document.getElementById('theme-toggle')
+          var uiToggle = document.getElementById('ui-mode-toggle')
+          var uiClassic = document.getElementById('ui-mode-classic')
+          var uiModern = document.getElementById('ui-mode-modern')
+
+          function apply(theme) {
+            root.classList.remove('theme-light', 'theme-dark')
+            root.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light')
+            if (toggle) {
+              var nextLabel = theme === 'dark' ? 'light' : 'dark'
+              toggle.setAttribute(
+                'aria-label',
+                'Switch to ' + nextLabel + ' mode',
+              )
+            }
+          }
+
+          function applyUi(mode) {
+            var isClassic = mode === 'classic'
+            root.classList.remove('ui-classic', 'ui-modern')
+            root.classList.add(isClassic ? 'ui-classic' : 'ui-modern')
+
+            if (uiClassic && uiModern) {
+              uiClassic.setAttribute(
+                'aria-selected',
+                isClassic ? 'true' : 'false',
+              )
+              uiModern.setAttribute(
+                'aria-selected',
+                isClassic ? 'false' : 'true',
+              )
+            }
+          }
+
+          var stored = null
+          try {
+            stored = localStorage.getItem(storageKey)
+          } catch (e) {}
+
+          var prefersDark =
+            window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+
+          var theme = stored || (prefersDark ? 'dark' : 'light')
+          apply(theme)
+
+          var storedUi = null
+          try {
+            storedUi = localStorage.getItem(uiStorageKey)
+          } catch (e) {}
+
+          applyUi(storedUi === 'classic' ? 'classic' : 'modern')
+
+          if (toggle) {
+            toggle.addEventListener('click', function () {
+              var next = root.classList.contains('theme-dark')
+                ? 'light'
+                : 'dark'
+              try {
+                localStorage.setItem(storageKey, next)
+              } catch (e) {}
+              apply(next)
+            })
+          }
+
+          if (uiToggle && uiClassic && uiModern) {
+            uiToggle.addEventListener('click', function (event) {
+              var target = event.target.closest('[data-ui-mode]')
+              if (!target) return
+
+              var mode =
+                target.getAttribute('data-ui-mode') === 'classic'
+                  ? 'classic'
+                  : 'modern'
+              try {
+                localStorage.setItem(uiStorageKey, mode)
+              } catch (e) {}
+              applyUi(mode)
+            })
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', init, { once: true })
+        } else {
+          init()
+        }
+      })()
+    </script>
+    <div class="menu-modal" aria-hidden="true">
+      <div class="menu-modal__backdrop"></div>
+      <div class="menu-modal__panel" role="dialog" aria-modal="true" aria-label="Menu">
+        <div class="menu-modal__header">
+          <span>Menu</span>
+          <button type="button" class="menu-modal__close" aria-label="Close menu">Close</button>
+        </div>
+        <div class="menu-modal__content"></div>
+      </div>
+    </div>
+    <div id="ui-mode-toggle" class="ui-mode-toggle" role="tablist" aria-label="Interface style">
+      <button id="ui-mode-classic" type="button" role="tab" aria-selected="false" data-ui-mode="classic">Classic</button>
+      <button id="ui-mode-modern" type="button" role="tab" aria-selected="true" data-ui-mode="modern">Modern</button>
+    </div>
+  </body>
+</html>
+
+
+
+
+
+
+
+
+

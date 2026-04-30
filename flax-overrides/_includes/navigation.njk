@@ -1,0 +1,30 @@
+<section id="nav-section">
+  <nav aria-label="Previous or next page navigation">
+    <ul role="list">
+      {% if pagination.href.previous %}
+      <li class="prev">
+        <a href="{{ pagination.href.previous }}">Previous</a>
+      </li>
+      {% else %} {% if pagination.pageNumber === 0 %}
+      <li class="prev">
+        <a href="/copyright/">Previous</a>
+      </li>
+      {% endif %} {% endif %} {% if pagination.href.next %}
+      <li class="next">
+        <a href="{{ pagination.href.next }}">Next</a>
+      </li>
+      {% endif %} {% if componentType === 'Title page' %}
+      <li class="next">
+        <a href="/copyright/">Next</a>
+      </li>
+      {% endif %} {% if componentType === 'Copyright page' %}
+      <li class="prev">
+        <a href="/">Previous</a>
+      </li>
+      <li class="next">
+        <a href="/chapter/{{ chapters[0].id }}">Next</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+</section>

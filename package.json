@@ -1,0 +1,19 @@
+{
+  "name": "ketty-root",
+  "version": "2025.07.25-1",
+  "packageManager": "yarn@4.9.2",
+  "license": "MIT",
+  "author": "Yannis Barlas, Alexandros Georgantas",
+  "scripts": {
+    "cz": "./node_modules/.bin/lint-staged && ./node_modules/.bin/git-cz"
+  },
+  "config": {
+    "commitizen": {
+      "path": "cz-customizable"
+    }
+  },
+  "dependencies": {
+    "@coko/lint": "^2.1.0",
+    "cypress": "^12.1.0"
+  }
+}

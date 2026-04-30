@@ -1,0 +1,14 @@
+services:
+  client:
+    environment:
+      SERVER_URL: ${KETTY_FLY_SERVER_URL}
+      WEBSOCKET_SERVER_URL: ${KETTY_FLY_WS_SERVER_URL}
+      CLIENT_FAVICON_PATH: ${CLIENT_FAVICON_PATH:-../static/ketida.ico}
+      # Make file watching reliable on Windows/WSL mounts
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+      HOST: "0.0.0.0"
+    volumes:
+      # Also live-mount static assets so edits reflect without rebuild
+      - ./packages/client/static:/home/node/app/static

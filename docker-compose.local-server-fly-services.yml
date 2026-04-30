@@ -1,0 +1,27 @@
+services:
+  server:
+    # Only rely on local DB and local MinIO; use Fly for microservices
+    depends_on:
+      db:
+        condition: service_started
+      s3:
+        condition: service_healthy
+      createbucket:
+        condition: service_completed_successfully
+    environment:
+      SERVICE_EPUB_CHECKER_URL: https://dsl-epubchecker.fly.dev
+      SERVICE_PAGEDJS_URL: https://dsl-pagedjs.fly.dev
+      SERVICE_XSWEET_URL: https://dsl-xsweet.fly.dev
+      SERVICE_FLAX_URL: https://dsl-ketty-flax.fly.dev
+      # enable polling-based watchers in dev
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+  client:
+    environment:
+      CLIENT_FAVICON_PATH: ${CLIENT_FAVICON_PATH:-../static/ketida.ico}
+      # ensure reliable HMR on Windows
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      WATCHPACK_POLLING_INTERVAL: "1000"
+      HOST: "0.0.0.0"

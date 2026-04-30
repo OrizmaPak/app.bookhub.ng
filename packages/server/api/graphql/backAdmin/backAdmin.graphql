@@ -1,0 +1,125 @@
+type BackAdminStats {
+  totalUsers: Int!
+  activeUsers: Int!
+  totalBooks: Int!
+}
+
+type BackAdminUser {
+  id: ID!
+  username: String
+  displayName: String
+  email: String
+  isActive: Boolean!
+  isVerified: Boolean!
+}
+
+type BackAdminAccess {
+  signInEnabled: Boolean!
+  signUpEnabled: Boolean!
+}
+
+type BackAdminEmailResult {
+  sent: Int!
+  failed: Int!
+}
+
+type BackAdminEmailQueueStats {
+  pending: Int!
+  processing: Int!
+  sent: Int!
+  failed: Int!
+  total: Int!
+  oldestPendingAt: String
+  lastFailedAt: String
+}
+
+type BackAdminOtpRequestResult {
+  ok: Boolean!
+  message: String!
+  expiresInSec: Int!
+}
+
+type BackAdminSession {
+  token: String!
+  email: String!
+  expiresAt: String!
+}
+
+type BackAdminInstanceHealth {
+  service: String!
+  url: String
+  status: String!
+  isHealthy: Boolean!
+  statusCode: Int
+  latencyMs: Int
+  message: String
+  checkedAt: String!
+  cpuLoad1: Float
+  cpuLoad5: Float
+  cpuLoad15: Float
+  memoryUsedMb: Float
+  memoryTotalMb: Float
+}
+
+type BackAdminLoadPoint {
+  timestamp: String!
+  load1: Float
+  load5: Float
+  load15: Float
+  memoryUsedMb: Float
+  memoryTotalMb: Float
+}
+
+type BackAdminInstanceLog {
+  id: ID!
+  service: String!
+  status: String!
+  message: String
+  checkedAt: String!
+  statusCode: Int
+  latencyMs: Int
+}
+
+extend type Query {
+  backAdminValidate(sessionToken: String!): Boolean!
+  backAdminStats(sessionToken: String!): BackAdminStats!
+  backAdminUsers(sessionToken: String!): [BackAdminUser!]!
+  backAdminAccess(sessionToken: String!): BackAdminAccess!
+  backAdminEmailQueueStats(sessionToken: String!): BackAdminEmailQueueStats!
+  backAdminInstanceHealth(sessionToken: String!): [BackAdminInstanceHealth!]!
+  backAdminLoadSeries(
+    sessionToken: String!
+    service: String
+    minutes: Int
+  ): [BackAdminLoadPoint!]!
+  backAdminInstanceLogs(
+    sessionToken: String!
+    service: String
+    limit: Int
+  ): [BackAdminInstanceLog!]!
+  publicAccessControls: BackAdminAccess!
+}
+
+extend type Mutation {
+  backAdminRequestOtp(email: String!): BackAdminOtpRequestResult!
+  backAdminVerifyOtp(email: String!, otp: String!): BackAdminSession!
+  backAdminSetUserActive(
+    sessionToken: String!
+    userId: ID!
+    isActive: Boolean!
+  ): Boolean!
+  backAdminLogoutUser(sessionToken: String!, userId: ID!): Boolean!
+  backAdminLogoutAll(sessionToken: String!, includeAdmins: Boolean): Int!
+  backAdminSendEmail(
+    sessionToken: String!
+    subject: String!
+    message: String!
+    userIds: [ID!]
+    sendToAll: Boolean
+  ): BackAdminEmailResult!
+  backAdminSetAccess(
+    sessionToken: String!
+    signInEnabled: Boolean!
+    signUpEnabled: Boolean!
+  ): BackAdminAccess!
+}
