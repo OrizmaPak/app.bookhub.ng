@@ -12,6 +12,7 @@ const {
   getTemplate,
   getSpecificTemplates,
   createTemplate,
+  createTemplateFromDesigner,
   cloneTemplate,
   updateTemplate,
   deleteTemplate,
@@ -45,11 +46,14 @@ const getTemplateHandler = async (_, { id }) => {
   return getTemplate(id)
 }
 
-const getSpecificTemplatesHandler = (_, { where }) => {
+const getSpecificTemplatesHandler = (_, { where }, ctx) => {
   try {
-    const { target, trimSize, name } = where
+    const { target, trimSize, name, bookId, exportProfileId } = where
     logger.info('template resolver: use case getSpecificTemplates')
-    return getSpecificTemplates(target, trimSize, name)
+    return getSpecificTemplates(target, trimSize, name, {
+      bookId,
+      exportProfileId,
+    })
   } catch (e) {
     throw new Error(e)
   }
@@ -86,6 +90,22 @@ const createTemplateHandler = async (_, { input }) => {
     })
 
     logger.info('New template created msg broadcasted')
+    return newTemplate
+  } catch (e) {
+    throw new Error(e)
+  }
+}
+
+const createTemplateFromDesignerHandler = async (_, { input }, ctx) => {
+  try {
+    logger.info('template resolver: use case createTemplateFromDesigner')
+
+    const newTemplate = await createTemplateFromDesigner(input, ctx.userId)
+
+    subscriptionManager.publish(TEMPLATE_CREATED, {
+      templateCreated: newTemplate.id,
+    })
+
     return newTemplate
   } catch (e) {
     throw new Error(e)
@@ -253,6 +273,7 @@ module.exports = {
   },
   Mutation: {
     createTemplate: createTemplateHandler,
+    createTemplateFromDesigner: createTemplateFromDesignerHandler,
     cloneTemplate: cloneTemplateHandler,
     updateTemplate: updateTemplateHandler,
     updateTemplateCSSFile: updateTemplateCSSFileHandler,

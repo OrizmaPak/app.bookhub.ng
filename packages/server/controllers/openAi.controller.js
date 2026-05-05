@@ -1,5 +1,5 @@
 /* eslint-disable no-await-in-loop */
-const { logger, request } = require('@coko/server')
+const { logger } = require('@coko/server')
 const { ApplicationParameter } = require('../models').models
 const { callOn } = require('../utilities/utils')
 const { getTokens, systemPrompt } = require('../api/graphql/helpers')
@@ -24,6 +24,24 @@ const getHeaders = async () => {
     },
     hasKey: !!CHAT_GPT_KEY?.config,
   }
+}
+
+const postJson = async (url, payload, headers) => {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const error = new Error(data?.error?.message || `HTTP ${response.status}`)
+    error.response = { status: response.status, data }
+    throw error
+  }
+
+  return { data }
 }
 
 const userMessages = (msgs = {}) => ({
@@ -80,15 +98,25 @@ const openAi = async ({
       temperature: 0,
     }
 
-    const response = await request.post(COMPLETIONS_ENDPOINT, payload, {
-      headers,
-    })
+    const response = await postJson(COMPLETIONS_ENDPOINT, payload, headers)
 
     logger.info(JSON.stringify(response.data.usage))
 
     return JSON.stringify(response.data.choices[0])
   } catch (e) {
-    throw new Error('openAi:', e)
+    const responseStatus = e?.response?.status
+    const responseData = e?.response?.data
+    const details =
+      responseData?.error?.message ||
+      responseData?.message ||
+      e?.message ||
+      'Unknown OpenAI error'
+
+    logger.error(
+      `openAi failed${responseStatus ? ` (${responseStatus})` : ''}: ${details}`,
+    )
+
+    throw new Error(`openAi: ${details}`)
   }
 }
 
@@ -103,11 +131,11 @@ const generateImages = async ({ input, format = 'b64_json' }) => {
     const payload = {
       model: DALL_E_MODEL,
       prompt: input,
-      response_format: { type: format },
+      response_format: format,
       n: 1,
     }
 
-    const response = await request.post(IMAGES_ENDPOINT, payload, { headers })
+    const response = await postJson(IMAGES_ENDPOINT, payload, headers)
 
     logger.info(JSON.stringify(response.data))
 
@@ -142,7 +170,7 @@ const embeddings = async (input, retries = 3, delay = 5000) => {
     // eslint-disable-next-line no-plusplus
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        response = await request.post(EMBEDDINGS_ENDPOINT, payload, { headers })
+        response = await postJson(EMBEDDINGS_ENDPOINT, payload, headers)
         break
       } catch (error) {
         if (error.response && error.response.status === 429) {

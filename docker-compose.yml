@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile-development
     command: ['node_modules/.bin/coko-client-dev-js']
     ports:
-      - ${CLIENT_PORT:-4000}:${CLIENT_PORT:-4000}
+      - ${HOST_CLIENT_PORT:-4000}:${CLIENT_PORT:-4000}
     environment:
       - NODE_ENV=development
       - CLIENT_PORT=${CLIENT_PORT:-4000}
@@ -15,8 +15,8 @@ services:
       - CLIENT_LANGUAGE=${CLIENT_LANGUAGE:-"en-US"}
       - CLIENT_FEATURE_UPLOAD_DOCX_FILES=true
       - CLIENT_FEATURE_BOOK_STRUCTURE=false
-      - SERVER_URL=http://localhost:3000
-      - WEBSOCKET_SERVER_URL=ws://localhost:3333
+      - SERVER_URL=http://localhost:${HOST_SERVER_PORT:-3000}
+      - WEBSOCKET_SERVER_URL=ws://localhost:${HOST_WS_SERVER_PORT:-3333}
       - CLIENT_WS_MIN_TIMEOUT=3000
       - CLIENT_WS_TIMEOUT=30000
       - CLIENT_FAVICON_PATH=${CLIENT_FAVICON_PATH:-../static/ketida.ico}
@@ -38,15 +38,15 @@ services:
       - xsweet
     command: ['yarn', 'coko-server', 'start-dev']
     ports:
-      - ${SERVER_PORT:-3000}:${SERVER_PORT:-3000}
-      - ${WS_SERVER_PORT:-3333}:${WS_SERVER_PORT:-3333}
+      - ${HOST_SERVER_PORT:-3000}:${SERVER_PORT:-3000}
+      - ${HOST_WS_SERVER_PORT:-3333}:${WS_SERVER_PORT:-3333}
     environment:
       - NODE_ENV=development
       - KETIDA_FLAVOUR=${KETIDA_FLAVOUR:-POD}
       - SECRET=${SECRET:-dev_secret}
       - SERVER_URL=${SERVER_URL:-http://server:3000}
       - WEBSOCKET_SERVER_URL=${WEBSOCKET_SERVER_URL:-ws://server:3333}
-      - CLIENT_URL=${CLIENT_URL:-http://localhost:4000}
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:${HOST_CLIENT_PORT:-4000}}
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
       - POSTGRES_DB=${POSTGRES_DB:-ketida_dev}
@@ -92,9 +92,9 @@ services:
       - FLAX_PUBLIC_URL=${FLAX_PUBLIC_URL:-http://localhost:3005}
       - FEATURE_UPLOAD_DOCX_FILES=true
       - FEATURE_BOOK_STRUCTURE=false
-      - FEATURE_POD=true
-      # - AI_ENABLED=${AI_ENABLED:-false}
-      # - CHAT_GPT_KEY=${CHAT_GPT_KEY}
+      - FEATURE_POD=${FEATURE_POD:-true}
+      - AI_ENABLED=${AI_ENABLED:-false}
+      - CHAT_GPT_KEY=${CHAT_GPT_KEY}
       - TEMP_DIRECTORY_CRON_JOB_SCHEDULE=${TEMP_DIRECTORY_CRON_JOB_TIMING:-0 * * * *}
       - TEMP_DIRECTORY_CRON_JOB_OFFSET=${TEMP_DIRECTORY_CRON_JOB_OFFSET:-1800000}
       - TEMP_DIRECTORY_CLEAN_UP=${TEMP_DIRECTORY_CLEAN_UP:-true}

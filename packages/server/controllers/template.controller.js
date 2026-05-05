@@ -9,6 +9,7 @@ const fs = require('fs-extra')
 const path = require('path')
 const config = require('config')
 const mime = require('mime-types')
+const { Readable } = require('stream')
 const orderBy = require('lodash/orderBy')
 const map = require('lodash/map')
 const find = require('lodash/find')
@@ -38,10 +39,11 @@ const getTemplates = async (
     return useTransaction(
       async tr => {
         if (!target) {
-          const { result: templates } = await Template.find(
-            { deleted: false },
-            { trx: tr },
-          )
+          const templates = await Template.query(tr)
+            .where({ deleted: false })
+            .andWhere(builder =>
+              builder.where('scope', 'global').orWhereNull('scope'),
+            )
 
           const sortable = map(templates, template => {
             const { id, name, author, target: innerTarget } = template
@@ -67,17 +69,19 @@ const getTemplates = async (
         logger.info(`>>> with target ${target} and notes ${notes}`)
 
         if (notes && notes === 'endnotes') {
-          const { result } = await Template.find(
-            { deleted: false, target, notes },
-            { trx: tr },
-          )
-
-          return result
+          return Template.query(tr)
+            .where({ deleted: false, target, notes })
+            .andWhere(builder =>
+              builder.where('scope', 'global').orWhereNull('scope'),
+            )
         }
 
         return Template.query(tr)
           .where('deleted', false)
           .andWhere('target', target)
+          .andWhere(builder =>
+            builder.where('scope', 'global').orWhereNull('scope'),
+          )
           .whereNot('notes', 'endnotes')
       },
       { trx, passedTrxOnly: true },
@@ -104,10 +108,13 @@ const getSpecificTemplates = async (
   target,
   trimSize = null,
   name = null,
+  visibility = {},
   options = {},
 ) => {
   try {
     const { trx } = options
+    const { bookId, exportProfileId } = visibility
+
     logger.info(
       `>>> fetching specific templates based on target and trim size where applicable`,
     )
@@ -118,6 +125,23 @@ const getSpecificTemplates = async (
           .where('deleted', false)
           .andWhere('target', target)
           .andWhere('enabled', true)
+          .andWhere(builder => {
+            builder.where('scope', 'global').orWhereNull('scope')
+
+            if (bookId) {
+              builder.orWhere(inner =>
+                inner.where('scope', 'book').andWhere({ bookId }),
+              )
+            }
+
+            if (exportProfileId) {
+              builder.orWhere(inner =>
+                inner
+                  .where('scope', 'profile')
+                  .andWhere({ exportProfileId }),
+              )
+            }
+          })
 
         if (trimSize !== null) {
           query.andWhere('trimSize', trimSize)
@@ -227,6 +251,74 @@ const createTemplate = async (
           await Template.patchAndFetchById(
             newTemplate.id,
             { thumbnailId: newThumbnail.id },
+            { trx: tr },
+          )
+        }
+
+        return newTemplate
+      },
+      { trx },
+    )
+  } catch (e) {
+    throw new Error(e)
+  }
+}
+
+const createTemplateFromDesigner = async (
+  { bookId, exportProfileId, name, css, trimSize = '5.5x8.5' },
+  userId,
+  options = {},
+) => {
+  try {
+    const { trx } = options
+    const stylesheetName = 'designer.css'
+
+    return useTransaction(
+      async tr => {
+        if (exportProfileId) {
+          const profile = await ExportProfile.findById(exportProfileId, {
+            trx: tr,
+          })
+
+          if (!profile || profile.bookId !== bookId) {
+            throw new Error('Export profile does not belong to this book')
+          }
+        }
+
+        const newTemplate = await Template.insert(
+          {
+            name,
+            author: 'AI Designer',
+            target: 'pagedjs',
+            trimSize,
+            notes: 'chapterEnd',
+            scope: exportProfileId ? 'profile' : 'book',
+            bookId,
+            exportProfileId,
+            createdBy: userId,
+            enabled: true,
+            exportScripts: [],
+          },
+          { trx: tr },
+        )
+
+        await createFile(
+          Readable.from([css]),
+          stylesheetName,
+          null,
+          null,
+          [],
+          newTemplate.id,
+          {
+            trx: tr,
+            forceObjectKeyValue: `templates/${newTemplate.id}/${stylesheetName}`,
+          },
+        )
+
+        if (exportProfileId) {
+          await ExportProfile.patchAndFetchById(
+            exportProfileId,
+            { templateId: newTemplate.id },
             { trx: tr },
           )
         }
@@ -784,6 +876,7 @@ module.exports = {
   getTemplate,
   getSpecificTemplates,
   createTemplate,
+  createTemplateFromDesigner,
   cloneTemplate,
   updateTemplate,
   deleteTemplate,

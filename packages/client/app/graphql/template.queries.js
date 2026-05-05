@@ -40,6 +40,25 @@ const GET_SPECIFIC_TEMPLATES = gql`
       trimSize
       target
       notes
+      scope
+      bookId
+      exportProfileId
+    }
+  }
+`
+
+const CREATE_TEMPLATE_FROM_DESIGNER = gql`
+  mutation CreateTemplateFromDesigner(
+    $input: CreateTemplateFromDesignerInput!
+  ) {
+    createTemplateFromDesigner(input: $input) {
+      id
+      name
+      target
+      trimSize
+      scope
+      bookId
+      exportProfileId
     }
   }
 `
@@ -142,6 +161,7 @@ const UPDATE_ASSOCIATED_TEMPLATES = gql`
 export {
   GET_TEMPLATES,
   GET_SPECIFIC_TEMPLATES,
+  CREATE_TEMPLATE_FROM_DESIGNER,
   TEMPLATE_UPDATED_SUBSCRIPTION,
   UPDATE_ASSOCIATED_TEMPLATES,
   ADD_TEMPLATE,

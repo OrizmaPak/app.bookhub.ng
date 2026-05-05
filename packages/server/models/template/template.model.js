@@ -12,6 +12,12 @@ const {
   booleanDefaultTrue,
 } = require('../helpers').schema
 
+const scopeType = {
+  type: 'string',
+  enum: ['global', 'book', 'profile'],
+  default: 'global',
+}
+
 class Template extends Base {
   constructor(properties) {
     super(properties)
@@ -47,6 +53,10 @@ class Template extends Base {
         notes: notesType,
         url: string,
         enabled: booleanDefaultTrue,
+        scope: scopeType,
+        bookId: id,
+        exportProfileId: id,
+        createdBy: id,
       },
     }
   }

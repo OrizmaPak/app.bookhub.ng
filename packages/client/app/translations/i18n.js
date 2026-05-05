@@ -4,6 +4,11 @@ import HttpApi from 'i18next-http-backend'
 import LanguageDetector from 'i18next-browser-languagedetector'
 import { serverUrl } from '@coko/client'
 
+const runtimeServerUrl =
+  (typeof window !== 'undefined' &&
+    (window.__ENV__?.SERVER_URL || window.env?.serverUrl)) ||
+  serverUrl
+
 i18next
   .use(initReactI18next)
   .use(HttpApi)
@@ -27,7 +32,7 @@ i18next
 
     // Back-end config
     backend: {
-      loadPath: `${serverUrl}/languages/{{lng}}.json`,
+      loadPath: `${runtimeServerUrl}/languages/{{lng}}.json`,
     },
     returnedObjectHandler: (key, object) => {
       const { value } = object

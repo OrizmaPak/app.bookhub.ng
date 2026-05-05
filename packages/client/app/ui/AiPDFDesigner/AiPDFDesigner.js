@@ -1,10 +1,18 @@
 import React, { useContext, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
-import { InteractionOutlined, PrinterOutlined } from '@ant-design/icons'
+import PropTypes from 'prop-types'
+import {
+  InteractionOutlined,
+  PrinterOutlined,
+  SaveOutlined,
+} from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
+import { useMutation } from '@apollo/client'
+import { Input, Modal, Select, message } from 'antd'
 
 import Editor from './components/Editor'
 import CssAssistant from './CssAssistant'
+import { CREATE_TEMPLATE_FROM_DESIGNER } from '../../graphql'
 import {
   srcdoc,
   initialPagedJSCSS,
@@ -185,8 +193,7 @@ const StyledRefreshButton = styled.span`
 
 const StyledCheckbox = styled(Checkbox)``
 
-// eslint-disable-next-line react/prop-types
-const AiPDFDesigner = ({ bookTitle }) => {
+const AiPDFDesigner = ({ bookId, bookTitle, profiles, refetchProfiles }) => {
   const {
     css,
     htmlSrc,
@@ -204,7 +211,26 @@ const AiPDFDesigner = ({ bookTitle }) => {
   const [showEditor, setShowEditor] = useState(true)
   const [showPreview, setShowPreview] = useState(true)
   const [showChat, setShowChat] = useState(false)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [selectedProfileId, setSelectedProfileId] = useState(null)
   const { t } = useTranslation(null, { keyPrefix: 'pages.aiBookDesigner' })
+
+  const [createTemplateFromDesigner, { loading: savingTemplate }] =
+    useMutation(CREATE_TEMPLATE_FROM_DESIGNER, {
+      onCompleted: () => {
+        message.success('Template saved')
+        setSaveModalOpen(false)
+        setTemplateName('')
+        setSelectedProfileId(null)
+        refetchProfiles && refetchProfiles()
+      },
+      onError: () => {
+        message.error('Template could not be saved')
+      },
+    })
+
+  const pdfProfiles = profiles.filter(profile => profile.format === 'pdf')
 
   useEffect(() => {
     showPreview && livePreview && updatePreview()
@@ -250,6 +276,33 @@ const AiPDFDesigner = ({ bookTitle }) => {
       )
   }
 
+  const handleOpenSaveTemplate = () => {
+    setTemplateName(bookTitle ? `${bookTitle} design` : 'Custom design')
+    setSaveModalOpen(true)
+  }
+
+  const handleSaveTemplate = () => {
+    const selectedProfile = pdfProfiles.find(
+      profile => profile.id === selectedProfileId,
+    )
+
+    const templateCss = `${cssTemplate1}\n${cssTemplate3}\n${css}`
+      .replace(/div#assistant-ctx\s*>\s*div\.chapter/g, '.chapter')
+      .replace(/div#assistant-ctx/g, 'body')
+
+    createTemplateFromDesigner({
+      variables: {
+        input: {
+          bookId,
+          css: templateCss,
+          exportProfileId: selectedProfileId,
+          name: templateName.trim(),
+          trimSize: selectedProfile?.trimSize || '5.5x8.5',
+        },
+      },
+    })
+  }
+
   return (
     <Root>
       <StyledHeading>
@@ -261,6 +314,16 @@ const AiPDFDesigner = ({ bookTitle }) => {
             stylesFromSource={initialPagedJSCSS}
             updatePreview={updatePreview}
           />
+          <StyledRefreshButton>
+            <button
+              disabled={!css}
+              onClick={handleOpenSaveTemplate}
+              title="Save as template"
+              type="button"
+            >
+              <SaveOutlined />
+            </button>
+          </StyledRefreshButton>
         </CssAssistantUi>
         <CheckBoxes>
           <span>
@@ -357,8 +420,55 @@ const AiPDFDesigner = ({ bookTitle }) => {
           />
         </StyledWindow>
       </WindowsContainer>
+      <Modal
+        confirmLoading={savingTemplate}
+        okButtonProps={{ disabled: !templateName.trim() || !css }}
+        okText="Save template"
+        onCancel={() => setSaveModalOpen(false)}
+        onOk={handleSaveTemplate}
+        open={saveModalOpen}
+        title="Save design as template"
+      >
+        <Input
+          onChange={e => setTemplateName(e.target.value)}
+          placeholder="Template name"
+          style={{ marginBottom: 16 }}
+          value={templateName}
+        />
+        <Select
+          allowClear
+          onChange={setSelectedProfileId}
+          options={pdfProfiles.map(profile => ({
+            label: profile.displayName,
+            value: profile.id,
+          }))}
+          placeholder="Attach to a PDF profile"
+          style={{ width: '100%' }}
+          value={selectedProfileId}
+        />
+      </Modal>
     </Root>
   )
+}
+
+AiPDFDesigner.propTypes = {
+  bookId: PropTypes.string.isRequired,
+  bookTitle: PropTypes.string,
+  profiles: PropTypes.arrayOf(
+    PropTypes.shape({
+      displayName: PropTypes.string,
+      format: PropTypes.string,
+      id: PropTypes.string,
+      trimSize: PropTypes.string,
+    }),
+  ),
+  refetchProfiles: PropTypes.func,
+}
+
+AiPDFDesigner.defaultProps = {
+  bookTitle: '',
+  profiles: [],
+  refetchProfiles: null,
 }
 
 export default AiPDFDesigner

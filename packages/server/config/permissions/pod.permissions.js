@@ -231,6 +231,23 @@ const createExportProfileRule = rule()(
   },
 )
 
+const createTemplateFromDesignerRule = rule()(
+  async (parent, { input: { bookId } }, ctx) => {
+    try {
+      const { userId } = ctx
+      if (!userId) return false
+
+      if (!bookId) {
+        throw new Error('book id should be provided')
+      }
+
+      return canEditBookAndRelevantAssets(userId, bookId, ctx)
+    } catch (e) {
+      throw new Error(e.message)
+    }
+  },
+)
+
 const getBookRule = rule()(async (_, { id: bookId }, ctx) => {
   try {
     const { userId } = ctx
@@ -650,6 +667,27 @@ const getBookExportProfilesRule = rule()(async (_, { bookId }, ctx, __) => {
   }
 })
 
+const getSpecificTemplatesRule = rule()(async (_, { where }, ctx) => {
+  try {
+    const { userId } = ctx
+    if (!userId) return false
+
+    const isAuthenticatedUser = await isAuthenticated(userId, ctx)
+
+    if (!isAuthenticatedUser) {
+      return false
+    }
+
+    if (!where?.bookId) {
+      return true
+    }
+
+    return canInteractWithBookAndRelevantAssets(userId, where.bookId, ctx)
+  } catch (e) {
+    throw new Error(e.message)
+  }
+})
+
 const teamRule = rule()(async (parent, { id: teamId }, ctx, info) => {
   try {
     const { userId } = ctx
@@ -826,7 +864,7 @@ const permissions = {
     getBooks: isAuthenticatedRule,
     getBookExportProfiles: getBookExportProfilesRule,
     getPagedPreviewerLink: isAuthenticatedRule,
-    getSpecificTemplates: isAuthenticatedRule,
+    getSpecificTemplates: getSpecificTemplatesRule,
     team: teamRule,
     teams: teamsRule,
     getInvitations: isAuthenticatedRule,
@@ -843,6 +881,7 @@ const permissions = {
     addTeamMembers: addTeamMembersRule,
     createBook: createBookRule,
     createExportProfile: createExportProfileRule,
+    createTemplateFromDesigner: createTemplateFromDesignerRule,
     createOAuthIdentity: isAuthenticatedRule,
     addTemplate: isAdmin,
     refreshTemplate: isAdmin,

@@ -222,6 +222,7 @@ const PreviewerPage = () => {
       where: {
         target: getFormatTarget(defaultProfile.format),
         trimSize: defaultProfile.size,
+        bookId,
       },
     },
   })
@@ -716,7 +717,7 @@ const PreviewerPage = () => {
     }
   }
 
-  const handleRefetchTemplates = options => {
+  const handleRefetchTemplates = (options, exportProfileId = null) => {
     const templateTarget = getFormatTarget(options.format)
     const templateTrimSize = templateTarget === 'pagedjs' ? options.size : null
 
@@ -726,6 +727,8 @@ const PreviewerPage = () => {
       where: {
         target: templateTarget,
         trimSize: templateTrimSize,
+        bookId,
+        exportProfileId,
       },
     }).then(res => {
       handleCreatePreview(
@@ -769,7 +772,11 @@ const PreviewerPage = () => {
 
       handleCreatePreview(templatesData.getSpecificTemplates, options, 'web')
     } else {
-      handleRefetchTemplates(options)
+      handleRefetchTemplates(
+        options,
+        newOptions.exportProfileId ||
+          (activeTabKey === 'saved' ? selectedProfile : null),
+      )
     }
   }
 
@@ -782,7 +789,10 @@ const PreviewerPage = () => {
         p => p.value === profileId,
       )
 
-      handleOptionsChange(getProfileExportOptions(newProfile))
+      handleOptionsChange({
+        ...getProfileExportOptions(newProfile),
+        exportProfileId: profileId,
+      })
     }
   }
 

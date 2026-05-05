@@ -29,6 +29,10 @@ type Template {
   url: String
   enabled: Boolean
   canBeDeleted: Boolean
+  scope: String
+  bookId: ID
+  exportProfileId: ID
+  createdBy: ID
 }
 
 input CreateTemplateInput {
@@ -46,6 +50,16 @@ input TemplatesWhereInput {
   target: String!
   trimSize: String
   name: String
+  bookId: ID
+  exportProfileId: ID
+}
+
+input CreateTemplateFromDesignerInput {
+  bookId: ID!
+  exportProfileId: ID
+  name: String!
+  css: String!
+  trimSize: String
 }
 
 input ClonedTemplateInput {
@@ -94,6 +108,7 @@ extend type Query {
 extend type Mutation {
   createTemplate(input: CreateTemplateInput): Template!
   addTemplate(url: String): Int
+  createTemplateFromDesigner(input: CreateTemplateFromDesignerInput!): Template!
   refreshTemplate(url: String): Int
   enableTemplate(url: String): Boolean
   disableTemplate(url: String): Boolean

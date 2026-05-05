@@ -2,6 +2,10 @@
 
 const featurePODEnabled =
   (process.env.FEATURE_POD && JSON.parse(process.env.FEATURE_POD)) || false
+const skipTemplateSeeding =
+  (process.env.SKIP_TEMPLATE_SEED &&
+    JSON.parse(process.env.SKIP_TEMPLATE_SEED)) ||
+  false
 
 module.exports = [
   {
@@ -18,7 +22,8 @@ module.exports = [
       await seedApplicationParameters()
     },
   },
-  featurePODEnabled && {
+  featurePODEnabled &&
+    !skipTemplateSeeding && {
     label: 'Seed templates',
     execute: async () => {
       const seedTemplates = require('../scripts/seeds/templates')
