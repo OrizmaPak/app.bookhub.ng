@@ -1195,10 +1195,6 @@ const ProducerPage = () => {
     showDeletedBookModal(() => history.push('/dashboard'))
   }
 
-  if (reconnecting) {
-    return <StyledSpin spinning />
-  }
-
   useEffect(() => {
     if (applicationParametersLoading || loading || bookComponentLoading) {
       setEditorLoading(true)
@@ -1208,6 +1204,10 @@ const ProducerPage = () => {
       }, 500)
     }
   }, [applicationParametersLoading, loading, bookComponentLoading])
+
+  if (reconnecting) {
+    return <StyledSpin spinning />
+  }
 
   const chaptersActionInProgress =
     changeOrderInProgress ||
