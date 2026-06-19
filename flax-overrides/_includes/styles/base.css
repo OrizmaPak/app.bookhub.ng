@@ -1113,6 +1113,110 @@ blockquote {
   background: #d44638;
 }
 
+/* Full-book search */
+.book-search-form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.book-search-input {
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  padding: 0.5rem 0.65rem;
+}
+
+.book-search-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+}
+
+.book-search-button,
+.book-search-clear {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.82rem;
+}
+
+.book-search-button {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.book-search-button:hover,
+.book-search-clear:hover {
+  box-shadow: 0 4px 14px var(--color-shadow);
+}
+
+.book-search-status,
+.book-search-count {
+  margin-top: 0.65rem;
+  color: var(--color-muted);
+  font-size: 0.82rem;
+}
+
+.book-search-status[data-status='error'] {
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+
+.book-search-results {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.65rem;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.book-search-result {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg);
+  box-shadow: 0 4px 14px var(--color-shadow);
+}
+
+.book-search-result__link {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem;
+  text-decoration: none;
+}
+
+.book-search-result__type {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.book-search-result__title {
+  color: var(--color-text);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.book-search-result__snippet {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.book-search-result mark {
+  background: #ffe58f;
+  border-radius: 0.2em;
+  color: #111111;
+  padding: 0 0.12em;
+}
+
 /* Ensure menu overlays content appropriately */
 #sidebar {
   z-index: 3;
@@ -1194,6 +1298,20 @@ blockquote {
   opacity: 1;
   transform: none;
   pointer-events: auto;
+}
+
+:root.ui-classic .menu-panel[data-panel='search'] {
+  display: block;
+  position: relative;
+  inset: auto;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  margin-bottom: 1rem;
+}
+
+:root.ui-classic .menu-panel[data-panel='search'] .menu-back {
+  display: none;
 }
 
 :root.ui-classic .menu-panel__header .menu-back,

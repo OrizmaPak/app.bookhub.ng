@@ -101,7 +101,7 @@
         <div class="menu-panel is-active" data-panel="root">
           <ul role="list" class="non-nested">
             <li class="menu-item">
-              <button type="button" class="menu-action" data-menu="search">Search</button>
+              <button type="button" class="menu-action" data-target="search">Search</button>
             </li>
             <li class="menu-item">
               <button type="button" class="menu-action" data-target="chapters">Chapter List</button>
@@ -114,6 +114,30 @@
             </li>
           </ul>
           <div class="menu-coming-soon" aria-live="polite" hidden></div>
+        </div>
+        <div class="menu-panel" data-panel="search">
+          <div class="menu-panel__header">
+            <span>Search</span>
+            <button type="button" class="menu-back" data-target="root" aria-label="Back">Back</button>
+          </div>
+          <form class="book-search-form" role="search">
+            <input
+              type="search"
+              class="book-search-input"
+              placeholder="Search this book"
+              aria-label="Search this book"
+              autocomplete="off"
+            />
+            <div class="book-search-actions">
+              <button type="submit" class="book-search-button">Search</button>
+              <button type="button" class="book-search-clear">Clear</button>
+            </div>
+          </form>
+          <div class="book-search-status" aria-live="polite">
+            Type a word or phrase to search across this book.
+          </div>
+          <div class="book-search-count" aria-live="polite" hidden></div>
+          <div class="book-search-results" role="list"></div>
         </div>
         <div class="menu-panel" data-panel="share">
           <div class="menu-panel__header">

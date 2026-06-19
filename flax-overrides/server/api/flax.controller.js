@@ -108,6 +108,70 @@ const optimizeImages = async chapters => {
   )
 }
 
+const normalizeSearchText = value =>
+  `${value || ''}`.replace(/\s+/g, ' ').trim()
+
+const htmlToSearchText = html => {
+  const $ = cheerio.load(html || '')
+  $('script, style, noscript').remove()
+
+  return normalizeSearchText($.root().text())
+}
+
+const createSearchIndex = (data, bookMetadata, chapters = []) => {
+  const authors = Array.isArray(bookMetadata.authors)
+    ? bookMetadata.authors.join(', ')
+    : bookMetadata.authors
+
+  const pages = [
+    {
+      id: 'title-page',
+      type: 'title',
+      title: 'Title page',
+      url: '',
+      text: normalizeSearchText(
+        [data.title, data.subtitle, authors].filter(Boolean).join(' '),
+      ),
+    },
+    {
+      id: 'copyright-page',
+      type: 'copyright',
+      title: 'Copyright page',
+      url: 'copyright/',
+      text: htmlToSearchText(data.copyrightContent),
+    },
+  ]
+
+  chapters.forEach((chapter, index) => {
+    const id = chapter.id || `chapter-${index + 1}`
+    const title = normalizeSearchText(chapter.title) || 'Untitled chapter'
+    const bodyText = htmlToSearchText(chapter.content)
+
+    pages.push({
+      id,
+      type: 'chapter',
+      title,
+      url: chapter.id ? `chapter/${chapter.id}/` : '',
+      text: normalizeSearchText([title, bodyText].filter(Boolean).join(' ')),
+    })
+  })
+
+  return {
+    version: 1,
+    bookId: data.bookId,
+    generatedAt: new Date().toISOString(),
+    pages,
+  }
+}
+
+const writeSearchIndex = (outputDir, searchIndex) => {
+  fs.writeFileSync(
+    path.join(outputDir, 'search-index.json'),
+    JSON.stringify(searchIndex),
+    { encoding: 'utf8' },
+  )
+}
+
 const createDataFiles = async (data, options = {}) => {
   try {
     logger.info(`${data.bookId}: creating the data files...`)
@@ -182,6 +246,7 @@ const createDataFiles = async (data, options = {}) => {
 
     // create hierarchical structure for books containing parts
     const structuredChapters = createPartChapterHierarchy(chapters)
+    const searchIndex = createSearchIndex(data, bookMetadata, chapters)
 
     let customParts
 
@@ -226,6 +291,8 @@ const createDataFiles = async (data, options = {}) => {
     if (!options.preview) {
       await saveData(chapters, metadata)
     }
+
+    return searchIndex
   } catch (error) {
     logger.error(error)
     throw new Error(error)
@@ -408,9 +475,10 @@ const buildWebsite = async (data, isPreview = true) => {
 
       copyAssets(bookId, userId)
 
-      await createDataFiles(data, { preview: true })
+      const searchIndex = await createDataFiles(data, { preview: true })
 
       await buildPreview(bookId, userId)
+      writeSearchIndex(`public/preview/${userId}/${bookId}`, searchIndex)
 
       cleanUp(bookId, userId)
 
@@ -424,10 +492,11 @@ const buildWebsite = async (data, isPreview = true) => {
 
     copyAssets(bookId, userId)
 
-    await createDataFiles(data, { downloadImages: true })
+    const searchIndex = await createDataFiles(data, { downloadImages: true })
 
     // create publish build
     await publish(bookId)
+    writeSearchIndex(`public/books/${bookId}`, searchIndex)
 
     cleanUp(bookId, userId)
 
