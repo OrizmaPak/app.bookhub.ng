@@ -1,5 +1,37 @@
 const readerScriptUrl = document.currentScript ? document.currentScript.src : ''
 
+const READER_SETTINGS_KEY = 'bookhub-reader-settings'
+const LEGACY_THEME_KEY = 'flax-theme'
+const LEGACY_UI_MODE_KEY = 'flax-ui-mode'
+
+const THEME_OPTIONS = ['light', 'dark', 'sepia', 'high-contrast']
+const UI_MODE_OPTIONS = ['classic', 'modern']
+
+const FONT_SCALE_MAP = {
+  sm: '0.92',
+  md: '1',
+  lg: '1.12',
+  xl: '1.24',
+}
+
+const WIDTH_MAP = {
+  narrow: '60ch',
+  standard: '72ch',
+  wide: '84ch',
+}
+
+const LINE_HEIGHT_MAP = {
+  compact: '1.5',
+  standard: '1.7',
+  relaxed: '1.95',
+}
+
+const PARAGRAPH_SPACING_MAP = {
+  compact: '0.95em',
+  standard: '1.25em',
+  relaxed: '1.7em',
+}
+
 const normalizeText = value => `${value || ''}`.replace(/\s+/g, ' ').trim()
 
 const normalizeForSearch = value => normalizeText(value).toLowerCase()
@@ -29,6 +61,179 @@ const getReaderRootPath = () => {
 const getReaderRootUrl = () => new URL(getReaderRootPath(), window.location.origin)
 
 const getSearchStorageKey = () => `bookhub-reader-search:${getReaderRootPath()}`
+
+const getSystemTheme = () =>
+  window.matchMedia &&
+  window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+
+const getSystemReduceMotion = () =>
+  !!(
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  )
+
+const getDefaultReaderSettings = () => ({
+  theme: getSystemTheme(),
+  fontSize: 'md',
+  readingWidth: 'standard',
+  lineHeight: 'standard',
+  paragraphSpacing: 'standard',
+  justifyText: true,
+  reduceMotion: getSystemReduceMotion(),
+  hideWatermark: false,
+  uiMode: 'modern',
+})
+
+const validateOption = (value, options, fallback) =>
+  options.includes(value) ? value : fallback
+
+const validateBoolean = (value, fallback) =>
+  typeof value === 'boolean' ? value : fallback
+
+const resolveReaderSettings = value => {
+  const defaults = getDefaultReaderSettings()
+  const settings = value || {}
+
+  return {
+    theme: validateOption(settings.theme, THEME_OPTIONS, defaults.theme),
+    fontSize: validateOption(settings.fontSize, Object.keys(FONT_SCALE_MAP), defaults.fontSize),
+    readingWidth: validateOption(
+      settings.readingWidth,
+      Object.keys(WIDTH_MAP),
+      defaults.readingWidth,
+    ),
+    lineHeight: validateOption(
+      settings.lineHeight,
+      Object.keys(LINE_HEIGHT_MAP),
+      defaults.lineHeight,
+    ),
+    paragraphSpacing: validateOption(
+      settings.paragraphSpacing,
+      Object.keys(PARAGRAPH_SPACING_MAP),
+      defaults.paragraphSpacing,
+    ),
+    justifyText: validateBoolean(settings.justifyText, defaults.justifyText),
+    reduceMotion: validateBoolean(settings.reduceMotion, defaults.reduceMotion),
+    hideWatermark: validateBoolean(settings.hideWatermark, defaults.hideWatermark),
+    uiMode: validateOption(settings.uiMode, UI_MODE_OPTIONS, defaults.uiMode),
+  }
+}
+
+const readStoredReaderSettings = () => {
+  let parsed = null
+
+  try {
+    const raw = localStorage.getItem(READER_SETTINGS_KEY)
+    parsed = raw ? JSON.parse(raw) : null
+  } catch (error) {}
+
+  let legacyTheme = null
+  let legacyUiMode = null
+
+  try {
+    legacyTheme = localStorage.getItem(LEGACY_THEME_KEY)
+    legacyUiMode = localStorage.getItem(LEGACY_UI_MODE_KEY)
+  } catch (error) {}
+
+  return resolveReaderSettings({
+    ...(parsed || {}),
+    theme: parsed?.theme || legacyTheme,
+    uiMode: parsed?.uiMode || legacyUiMode,
+  })
+}
+
+let currentReaderSettings = readStoredReaderSettings()
+
+const updateThemeToggleLabel = settings => {
+  const themeToggle = document.querySelector('#theme-toggle')
+  if (!themeToggle) return
+
+  const nextTheme = settings.theme === 'dark' ? 'light' : 'dark'
+  const nextLabel = nextTheme === 'dark' ? 'dark mode' : 'light mode'
+  themeToggle.setAttribute('aria-label', `Switch to ${nextLabel}`)
+  themeToggle.setAttribute('title', `Switch to ${nextLabel}`)
+}
+
+const syncUiModeButtons = settings => {
+  document.querySelectorAll('[data-ui-mode]').forEach(button => {
+    const selected = button.getAttribute('data-ui-mode') === settings.uiMode
+    button.setAttribute('aria-selected', selected ? 'true' : 'false')
+  })
+}
+
+const syncSettingsControls = settings => {
+  document.querySelectorAll('[data-setting]').forEach(control => {
+    const key = control.getAttribute('data-setting')
+    if (!key || !(key in settings)) return
+
+    if (control.type === 'checkbox') {
+      control.checked = !!settings[key]
+    } else {
+      control.value = settings[key]
+    }
+  })
+
+  syncUiModeButtons(settings)
+  updateThemeToggleLabel(settings)
+}
+
+const applyReaderSettings = settings => {
+  const root = document.documentElement
+  root.classList.remove(
+    'theme-light',
+    'theme-dark',
+    'theme-sepia',
+    'theme-high-contrast',
+    'ui-classic',
+    'ui-modern',
+  )
+
+  root.classList.add(
+    settings.theme === 'high-contrast'
+      ? 'theme-high-contrast'
+      : `theme-${settings.theme}`,
+  )
+  root.classList.add(settings.uiMode === 'classic' ? 'ui-classic' : 'ui-modern')
+
+  root.dataset.justifyText = settings.justifyText ? 'on' : 'off'
+  root.dataset.reduceMotion = settings.reduceMotion ? 'on' : 'off'
+  root.dataset.hideWatermark = settings.hideWatermark ? 'on' : 'off'
+
+  root.style.setProperty('--reader-font-scale', FONT_SCALE_MAP[settings.fontSize])
+  root.style.setProperty('--reader-content-width', WIDTH_MAP[settings.readingWidth])
+  root.style.setProperty('--reader-line-height', LINE_HEIGHT_MAP[settings.lineHeight])
+  root.style.setProperty(
+    '--reader-paragraph-spacing',
+    PARAGRAPH_SPACING_MAP[settings.paragraphSpacing],
+  )
+
+  syncSettingsControls(settings)
+}
+
+const persistReaderSettings = settings => {
+  currentReaderSettings = resolveReaderSettings(settings)
+
+  try {
+    localStorage.setItem(READER_SETTINGS_KEY, JSON.stringify(currentReaderSettings))
+    localStorage.setItem(LEGACY_THEME_KEY, currentReaderSettings.theme)
+    localStorage.setItem(LEGACY_UI_MODE_KEY, currentReaderSettings.uiMode)
+  } catch (error) {}
+
+  applyReaderSettings(currentReaderSettings)
+}
+
+const updateReaderSettings = partialSettings => {
+  persistReaderSettings({
+    ...currentReaderSettings,
+    ...partialSettings,
+  })
+}
+
+const resetReaderSettings = () => {
+  persistReaderSettings(getDefaultReaderSettings())
+}
 
 const readSearchState = () => {
   try {
@@ -163,7 +368,10 @@ const createSnippet = (page, query) => {
 
   const radius = 90
   const start = Math.max(0, index - radius)
-  const end = Math.min(source.length, index + normalizeText(highlightQuery).length + radius)
+  const end = Math.min(
+    source.length,
+    index + normalizeText(highlightQuery).length + radius,
+  )
   const prefix = start > 0 ? '... ' : ''
   const suffix = end < source.length ? ' ...' : ''
 
@@ -186,7 +394,7 @@ const getSearchElements = container => {
 }
 
 const setSearchStatus = (elements, message, type = '') => {
-  if (!elements || !elements.status) return
+  if (!elements?.status) return
 
   elements.status.textContent = message
   elements.status.hidden = !message
@@ -215,7 +423,7 @@ const resetSearchInContainer = container => {
 }
 
 const renderSearchResults = (elements, matches, query) => {
-  if (!elements || !elements.results) return
+  if (!elements?.results) return
 
   if (elements.count) {
     elements.count.hidden = false
@@ -232,7 +440,12 @@ const renderSearchResults = (elements, matches, query) => {
   elements.results.innerHTML = matches
     .map(page => {
       const href = getResultHref(page)
-      const type = page.type === 'copyright' ? 'Copyright' : page.type === 'title' ? 'Title page' : 'Chapter'
+      const type =
+        page.type === 'copyright'
+          ? 'Copyright'
+          : page.type === 'title'
+            ? 'Title page'
+            : 'Chapter'
 
       return `
         <article class="book-search-result" role="listitem">
@@ -286,18 +499,68 @@ const performBookSearch = async (elements, query, options = {}) => {
   }
 }
 
+const getSettingsElements = container => {
+  const panel = container.querySelector('[data-panel="settings"]')
+  if (!panel) return null
+
+  return {
+    panel,
+    controls: panel.querySelectorAll('[data-setting]'),
+    resetButton: panel.querySelector('.reader-settings-reset'),
+    status: panel.querySelector('.reader-settings-status'),
+  }
+}
+
+const setSettingsStatus = (elements, message) => {
+  if (!elements?.status) return
+
+  elements.status.textContent = message
+  elements.status.hidden = !message
+}
+
+const bindSettingsPanel = container => {
+  const elements = getSettingsElements(container)
+  if (!elements) return
+
+  elements.controls.forEach(control => {
+    control.addEventListener('change', event => {
+      const key = event.currentTarget.getAttribute('data-setting')
+      if (!key) return
+
+      const value =
+        event.currentTarget.type === 'checkbox'
+          ? event.currentTarget.checked
+          : event.currentTarget.value
+
+      updateReaderSettings({ [key]: value })
+      setSettingsStatus(elements, '')
+    })
+  })
+
+  if (elements.resetButton) {
+    elements.resetButton.addEventListener('click', () => {
+      resetReaderSettings()
+      setSettingsStatus(elements, 'Settings restored.')
+    })
+  }
+
+  syncSettingsControls(currentReaderSettings)
+}
+
 window.onload = () => {
+  applyReaderSettings(currentReaderSettings)
+
   const sidebar = document.querySelector('#sidebar')
   const sidebarToggle = sidebar
     ? sidebar.querySelector('button[aria-controls="sidebar"]')
     : null
 
   if (sidebar && sidebarToggle) {
-    sidebarToggle.addEventListener('click', e => {
+    sidebarToggle.addEventListener('click', event => {
       sidebar.classList.toggle('collapsed')
-      e.currentTarget.setAttribute(
+      event.currentTarget.setAttribute(
         'aria-expanded',
-        e.currentTarget.getAttribute('aria-expanded') === 'false',
+        `${event.currentTarget.getAttribute('aria-expanded') === 'false'}`,
       )
     })
   }
@@ -333,29 +596,16 @@ window.onload = () => {
           panel.classList.add('is-left')
         }
       })
+
       if (rootPanel && target === 'root') {
         rootPanel.classList.remove('is-left')
       }
     }
 
-    const menuButtons = container.querySelectorAll('[data-target]')
-    menuButtons.forEach(btn => {
-      btn.addEventListener('click', e => {
-        const target = e.currentTarget.getAttribute('data-target')
+    container.querySelectorAll('[data-target]').forEach(button => {
+      button.addEventListener('click', event => {
+        const target = event.currentTarget.getAttribute('data-target')
         if (target) showPanel(target)
-      })
-    })
-
-    const comingSoon = container.querySelector('.menu-coming-soon')
-    const featureButtons = container.querySelectorAll('[data-menu]')
-    featureButtons.forEach(btn => {
-      btn.addEventListener('click', e => {
-        const feature = e.currentTarget.getAttribute('data-menu')
-        if (!comingSoon || !feature) return
-
-        const label = feature.charAt(0).toUpperCase() + feature.slice(1)
-        comingSoon.textContent = `${label} feature coming soon`
-        comingSoon.hidden = false
       })
     })
 
@@ -369,10 +619,7 @@ window.onload = () => {
       const shareTitleLabel = shareDetailPanel.querySelector('.share-detail-title')
       const shareTitleNode = document.querySelector('header h1')
       const shareTitle = (shareTitleNode && shareTitleNode.textContent.trim()) || document.title
-
-      const current = {
-        scope: 'page',
-      }
+      const current = { scope: 'page' }
 
       const getShareTargets = () => {
         const { origin, pathname, search, hash } = window.location
@@ -384,8 +631,10 @@ window.onload = () => {
           bookPath = `${bookPath}/`
         }
 
-        const bookUrl = `${origin}${bookPath}`
-        return { pageUrl, bookUrl }
+        return {
+          pageUrl,
+          bookUrl: `${origin}${bookPath}`,
+        }
       }
 
       const getActiveUrl = () => {
@@ -417,9 +666,9 @@ window.onload = () => {
         }
       }
 
-      scopeButtons.forEach(btn => {
-        btn.addEventListener('click', e => {
-          const scope = e.currentTarget.getAttribute('data-share-scope-target')
+      scopeButtons.forEach(button => {
+        button.addEventListener('click', event => {
+          const scope = event.currentTarget.getAttribute('data-share-scope-target')
           current.scope = scope === 'book' ? 'book' : 'page'
           setStatus('')
           refreshScopeUI()
@@ -427,9 +676,9 @@ window.onload = () => {
         })
       })
 
-      actionButtons.forEach(btn => {
-        btn.addEventListener('click', async e => {
-          const action = e.currentTarget.getAttribute('data-share-action')
+      actionButtons.forEach(button => {
+        button.addEventListener('click', async event => {
+          const action = event.currentTarget.getAttribute('data-share-action')
           const url = getActiveUrl()
           const text =
             current.scope === 'book'
@@ -440,7 +689,7 @@ window.onload = () => {
             try {
               await navigator.clipboard.writeText(url)
               setStatus('Link copied')
-            } catch (err) {
+            } catch (error) {
               setStatus('Could not copy link')
             }
             return
@@ -451,7 +700,7 @@ window.onload = () => {
               try {
                 await navigator.share({ title: shareTitle, text, url })
                 setStatus('Shared')
-              } catch (err) {
+              } catch (error) {
                 setStatus('')
               }
             } else {
@@ -487,13 +736,12 @@ window.onload = () => {
       refreshScopeUI()
     }
 
-    const backButtons = container.querySelectorAll('.menu-back:not([data-target])')
-    backButtons.forEach(btn => {
-      btn.addEventListener('click', () => showPanel('root'))
-    })
+    container
+      .querySelectorAll('.menu-back:not([data-target])')
+      .forEach(button => button.addEventListener('click', () => showPanel('root')))
 
     const searchElements = getSearchElements(container)
-    if (searchElements && searchElements.form && searchElements.input) {
+    if (searchElements?.form && searchElements.input) {
       let searchTimer
 
       searchElements.form.addEventListener('submit', event => {
@@ -539,35 +787,49 @@ window.onload = () => {
         performBookSearch(searchElements, storedSearch.query, {
           preserveState: true,
         })
+      } else {
+        resetSearchUi(searchElements)
       }
     }
 
-    const searchInput = container.querySelector('.chapter-search-input')
+    const chapterSearchInput = container.querySelector('.chapter-search-input')
     const chapterList = container.querySelector('.chapter-list')
-
-    if (searchInput && chapterList) {
-      searchInput.addEventListener('input', e => {
-        const query = e.currentTarget.value.trim().toLowerCase()
-        const items = chapterList.querySelectorAll('li')
-
-        items.forEach(li => {
-          const links = li.querySelectorAll('a')
+    if (chapterSearchInput && chapterList) {
+      chapterSearchInput.addEventListener('input', event => {
+        const query = event.currentTarget.value.trim().toLowerCase()
+        chapterList.querySelectorAll('li').forEach(item => {
+          const links = item.querySelectorAll('a')
           if (!links.length) return
 
-          let match = false
-          links.forEach(a => {
-            if (a.textContent.toLowerCase().includes(query)) {
-              match = true
-            }
-          })
+          const match = Array.from(links).some(link =>
+            link.textContent.toLowerCase().includes(query),
+          )
 
-          li.style.display = query === '' || match ? '' : 'none'
+          item.style.display = query === '' || match ? '' : 'none'
         })
       })
     }
+
+    bindSettingsPanel(container)
   }
 
   bindMenu(document)
+
+  const themeToggle = document.querySelector('#theme-toggle')
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const nextTheme = currentReaderSettings.theme === 'dark' ? 'light' : 'dark'
+      updateReaderSettings({ theme: nextTheme })
+    })
+  }
+
+  document.querySelectorAll('[data-ui-mode]').forEach(button => {
+    button.addEventListener('click', event => {
+      const uiMode = event.currentTarget.getAttribute('data-ui-mode')
+      if (!uiMode) return
+      updateReaderSettings({ uiMode })
+    })
+  })
 
   const mobileMenuButton = document.querySelector('.mobile-menu-button')
   const menuModal = document.querySelector('.menu-modal')
@@ -577,12 +839,15 @@ window.onload = () => {
 
   const openMenuModal = () => {
     if (!menuModal || !menuModalContent) return
+
     const menu = document.querySelector('.menu')
     if (menu) {
       menuModalContent.innerHTML = ''
       menuModalContent.appendChild(menu.cloneNode(true))
       bindMenu(menuModalContent)
+      syncSettingsControls(currentReaderSettings)
     }
+
     menuModal.classList.add('open')
     menuModal.setAttribute('aria-hidden', 'false')
   }

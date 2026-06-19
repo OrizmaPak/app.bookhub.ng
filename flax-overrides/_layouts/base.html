@@ -9,6 +9,156 @@
     <style>
       {{ css | cssmin | safe }}
     </style>
+    <script>
+      (function () {
+        var settingsKey = 'bookhub-reader-settings'
+        var legacyThemeKey = 'flax-theme'
+        var legacyUiKey = 'flax-ui-mode'
+        var root = document.documentElement
+        var themeOptions = ['light', 'dark', 'sepia', 'high-contrast']
+        var uiModeOptions = ['classic', 'modern']
+        var fontScaleMap = { sm: '0.92', md: '1', lg: '1.12', xl: '1.24' }
+        var widthMap = {
+          narrow: '60ch',
+          standard: '72ch',
+          wide: '84ch',
+        }
+        var lineHeightMap = {
+          compact: '1.5',
+          standard: '1.7',
+          relaxed: '1.95',
+        }
+        var paragraphSpacingMap = {
+          compact: '0.95em',
+          standard: '1.25em',
+          relaxed: '1.7em',
+        }
+
+        function getSystemTheme() {
+          return window.matchMedia &&
+            window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+        }
+
+        function getSystemReduceMotion() {
+          return !!(
+            window.matchMedia &&
+            window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          )
+        }
+
+        function readSettings() {
+          var stored = null
+
+          try {
+            stored = localStorage.getItem(settingsKey)
+          } catch (e) {}
+
+          var parsed = null
+
+          if (stored) {
+            try {
+              parsed = JSON.parse(stored)
+            } catch (e) {}
+          }
+
+          var legacyTheme = null
+          var legacyUi = null
+
+          try {
+            legacyTheme = localStorage.getItem(legacyThemeKey)
+            legacyUi = localStorage.getItem(legacyUiKey)
+          } catch (e) {}
+
+          var theme = parsed && themeOptions.includes(parsed.theme)
+            ? parsed.theme
+            : themeOptions.includes(legacyTheme)
+              ? legacyTheme
+              : getSystemTheme()
+
+          var uiMode = parsed && uiModeOptions.includes(parsed.uiMode)
+            ? parsed.uiMode
+            : legacyUi === 'classic'
+              ? 'classic'
+              : 'modern'
+
+          return {
+            theme: theme,
+            fontSize:
+              parsed && fontScaleMap[parsed.fontSize] ? parsed.fontSize : 'md',
+            readingWidth:
+              parsed && widthMap[parsed.readingWidth]
+                ? parsed.readingWidth
+                : 'standard',
+            lineHeight:
+              parsed && lineHeightMap[parsed.lineHeight]
+                ? parsed.lineHeight
+                : 'standard',
+            paragraphSpacing:
+              parsed && paragraphSpacingMap[parsed.paragraphSpacing]
+                ? parsed.paragraphSpacing
+                : 'standard',
+            justifyText:
+              parsed && typeof parsed.justifyText === 'boolean'
+                ? parsed.justifyText
+                : true,
+            reduceMotion:
+              parsed && typeof parsed.reduceMotion === 'boolean'
+                ? parsed.reduceMotion
+                : getSystemReduceMotion(),
+            hideWatermark:
+              parsed && typeof parsed.hideWatermark === 'boolean'
+                ? parsed.hideWatermark
+                : false,
+            uiMode: uiMode,
+          }
+        }
+
+        function applySettings(settings) {
+          root.classList.remove(
+            'theme-light',
+            'theme-dark',
+            'theme-sepia',
+            'theme-high-contrast',
+            'ui-classic',
+            'ui-modern',
+          )
+
+          root.classList.add(
+            settings.theme === 'high-contrast'
+              ? 'theme-high-contrast'
+              : 'theme-' + settings.theme,
+          )
+          root.classList.add(
+            settings.uiMode === 'classic' ? 'ui-classic' : 'ui-modern',
+          )
+
+          root.dataset.justifyText = settings.justifyText ? 'on' : 'off'
+          root.dataset.reduceMotion = settings.reduceMotion ? 'on' : 'off'
+          root.dataset.hideWatermark = settings.hideWatermark ? 'on' : 'off'
+
+          root.style.setProperty(
+            '--reader-font-scale',
+            fontScaleMap[settings.fontSize],
+          )
+          root.style.setProperty(
+            '--reader-content-width',
+            widthMap[settings.readingWidth],
+          )
+          root.style.setProperty(
+            '--reader-line-height',
+            lineHeightMap[settings.lineHeight],
+          )
+          root.style.setProperty(
+            '--reader-paragraph-spacing',
+            paragraphSpacingMap[settings.paragraphSpacing],
+          )
+        }
+
+        applySettings(readSettings())
+      })()
+    </script>
     <style>
       /* Force template colors to follow light/dark theme tokens */
       :root.theme-light #content,
@@ -110,7 +260,7 @@
               <button type="button" class="menu-action" data-target="share">Share</button>
             </li>
             <li class="menu-item">
-              <button type="button" class="menu-action" data-menu="settings">Settings</button>
+              <button type="button" class="menu-action" data-target="settings">Settings</button>
             </li>
           </ul>
           <div class="menu-coming-soon" aria-live="polite" hidden></div>
@@ -138,6 +288,72 @@
           </div>
           <div class="book-search-count" aria-live="polite" hidden></div>
           <div class="book-search-results" role="list"></div>
+        </div>
+        <div class="menu-panel" data-panel="settings">
+          <div class="menu-panel__header">
+            <span>Settings</span>
+            <button type="button" class="menu-back" data-target="root" aria-label="Back">Back</button>
+          </div>
+          <div class="reader-settings">
+            <label class="reader-setting">
+              <span class="reader-setting__label">Theme preset</span>
+              <select class="reader-setting__control" data-setting="theme" aria-label="Theme preset">
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="sepia">Sepia</option>
+                <option value="high-contrast">High contrast</option>
+              </select>
+            </label>
+            <label class="reader-setting">
+              <span class="reader-setting__label">Font size</span>
+              <select class="reader-setting__control" data-setting="fontSize" aria-label="Font size">
+                <option value="sm">Small</option>
+                <option value="md">Standard</option>
+                <option value="lg">Large</option>
+                <option value="xl">Extra large</option>
+              </select>
+            </label>
+            <label class="reader-setting">
+              <span class="reader-setting__label">Reading width</span>
+              <select class="reader-setting__control" data-setting="readingWidth" aria-label="Reading width">
+                <option value="narrow">Narrow</option>
+                <option value="standard">Standard</option>
+                <option value="wide">Wide</option>
+              </select>
+            </label>
+            <label class="reader-setting">
+              <span class="reader-setting__label">Line height</span>
+              <select class="reader-setting__control" data-setting="lineHeight" aria-label="Line height">
+                <option value="compact">Compact</option>
+                <option value="standard">Standard</option>
+                <option value="relaxed">Relaxed</option>
+              </select>
+            </label>
+            <label class="reader-setting">
+              <span class="reader-setting__label">Paragraph spacing</span>
+              <select class="reader-setting__control" data-setting="paragraphSpacing" aria-label="Paragraph spacing">
+                <option value="compact">Compact</option>
+                <option value="standard">Standard</option>
+                <option value="relaxed">Relaxed</option>
+              </select>
+            </label>
+            <label class="reader-setting reader-setting--toggle">
+              <span class="reader-setting__label">Justify text</span>
+              <input type="checkbox" class="reader-setting__toggle" data-setting="justifyText" aria-label="Justify text" />
+            </label>
+            <label class="reader-setting reader-setting--toggle">
+              <span class="reader-setting__label">Reduce motion</span>
+              <input type="checkbox" class="reader-setting__toggle" data-setting="reduceMotion" aria-label="Reduce motion" />
+            </label>
+            <label class="reader-setting reader-setting--toggle">
+              <span class="reader-setting__label">Hide decorative watermark</span>
+              <input type="checkbox" class="reader-setting__toggle" data-setting="hideWatermark" aria-label="Hide decorative watermark" />
+            </label>
+          </div>
+          <div class="reader-settings-actions">
+            <button type="button" class="reader-settings-reset">Reset settings</button>
+          </div>
+          <div class="reader-settings-status" aria-live="polite" hidden></div>
         </div>
         <div class="menu-panel" data-panel="share">
           <div class="menu-panel__header">
@@ -232,102 +448,6 @@
     </div>
     {{ customRunningBlocks.footer | safe }}
     <script src="/scripts/toc.js"></script>
-    <script>
-      (function () {
-        var storageKey = 'flax-theme'
-        var uiStorageKey = 'flax-ui-mode'
-        var root = document.documentElement
-
-        function init() {
-          var toggle = document.getElementById('theme-toggle')
-          var uiToggle = document.getElementById('ui-mode-toggle')
-          var uiClassic = document.getElementById('ui-mode-classic')
-          var uiModern = document.getElementById('ui-mode-modern')
-
-          function apply(theme) {
-            root.classList.remove('theme-light', 'theme-dark')
-            root.classList.add(theme === 'dark' ? 'theme-dark' : 'theme-light')
-            if (toggle) {
-              var nextLabel = theme === 'dark' ? 'light' : 'dark'
-              toggle.setAttribute(
-                'aria-label',
-                'Switch to ' + nextLabel + ' mode',
-              )
-            }
-          }
-
-          function applyUi(mode) {
-            var isClassic = mode === 'classic'
-            root.classList.remove('ui-classic', 'ui-modern')
-            root.classList.add(isClassic ? 'ui-classic' : 'ui-modern')
-
-            if (uiClassic && uiModern) {
-              uiClassic.setAttribute(
-                'aria-selected',
-                isClassic ? 'true' : 'false',
-              )
-              uiModern.setAttribute(
-                'aria-selected',
-                isClassic ? 'false' : 'true',
-              )
-            }
-          }
-
-          var stored = null
-          try {
-            stored = localStorage.getItem(storageKey)
-          } catch (e) {}
-
-          var prefersDark =
-            window.matchMedia &&
-            window.matchMedia('(prefers-color-scheme: dark)').matches
-
-          var theme = stored || (prefersDark ? 'dark' : 'light')
-          apply(theme)
-
-          var storedUi = null
-          try {
-            storedUi = localStorage.getItem(uiStorageKey)
-          } catch (e) {}
-
-          applyUi(storedUi === 'classic' ? 'classic' : 'modern')
-
-          if (toggle) {
-            toggle.addEventListener('click', function () {
-              var next = root.classList.contains('theme-dark')
-                ? 'light'
-                : 'dark'
-              try {
-                localStorage.setItem(storageKey, next)
-              } catch (e) {}
-              apply(next)
-            })
-          }
-
-          if (uiToggle && uiClassic && uiModern) {
-            uiToggle.addEventListener('click', function (event) {
-              var target = event.target.closest('[data-ui-mode]')
-              if (!target) return
-
-              var mode =
-                target.getAttribute('data-ui-mode') === 'classic'
-                  ? 'classic'
-                  : 'modern'
-              try {
-                localStorage.setItem(uiStorageKey, mode)
-              } catch (e) {}
-              applyUi(mode)
-            })
-          }
-        }
-
-        if (document.readyState === 'loading') {
-          document.addEventListener('DOMContentLoaded', init, { once: true })
-        } else {
-          init()
-        }
-      })()
-    </script>
     <div class="menu-modal" aria-hidden="true">
       <div class="menu-modal__backdrop"></div>
       <div class="menu-modal__panel" role="dialog" aria-modal="true" aria-label="Menu">
