@@ -1493,22 +1493,6 @@ blockquote {
   padding: 0;
 }
 
-:root[data-reduce-motion='on'] * {
-  animation-duration: 0.01ms !important;
-  animation-iteration-count: 1 !important;
-  scroll-behavior: auto !important;
-  transition-duration: 0.01ms !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root:not([data-reduce-motion='off']) * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
 :root.ui-classic #sidebar.collapsed nav {
   right: 300%;
   height: 0;

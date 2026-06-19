@@ -68,12 +68,6 @@ const getSystemTheme = () =>
     ? 'dark'
     : 'light'
 
-const getSystemReduceMotion = () =>
-  !!(
-    window.matchMedia &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  )
-
 const getDefaultReaderSettings = () => ({
   theme: getSystemTheme(),
   fontSize: 'md',
@@ -81,7 +75,6 @@ const getDefaultReaderSettings = () => ({
   lineHeight: 'standard',
   paragraphSpacing: 'standard',
   justifyText: true,
-  reduceMotion: getSystemReduceMotion(),
   hideWatermark: false,
   uiMode: 'modern',
 })
@@ -115,7 +108,6 @@ const resolveReaderSettings = value => {
       defaults.paragraphSpacing,
     ),
     justifyText: validateBoolean(settings.justifyText, defaults.justifyText),
-    reduceMotion: validateBoolean(settings.reduceMotion, defaults.reduceMotion),
     hideWatermark: validateBoolean(settings.hideWatermark, defaults.hideWatermark),
     uiMode: validateOption(settings.uiMode, UI_MODE_OPTIONS, defaults.uiMode),
   }
@@ -198,7 +190,6 @@ const applyReaderSettings = settings => {
   root.classList.add(settings.uiMode === 'classic' ? 'ui-classic' : 'ui-modern')
 
   root.dataset.justifyText = settings.justifyText ? 'on' : 'off'
-  root.dataset.reduceMotion = settings.reduceMotion ? 'on' : 'off'
   root.dataset.hideWatermark = settings.hideWatermark ? 'on' : 'off'
 
   root.style.setProperty('--reader-font-scale', FONT_SCALE_MAP[settings.fontSize])

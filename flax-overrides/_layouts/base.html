@@ -41,13 +41,6 @@
             : 'light'
         }
 
-        function getSystemReduceMotion() {
-          return !!(
-            window.matchMedia &&
-            window.matchMedia('(prefers-reduced-motion: reduce)').matches
-          )
-        }
-
         function readSettings() {
           var stored = null
 
@@ -103,10 +96,6 @@
               parsed && typeof parsed.justifyText === 'boolean'
                 ? parsed.justifyText
                 : true,
-            reduceMotion:
-              parsed && typeof parsed.reduceMotion === 'boolean'
-                ? parsed.reduceMotion
-                : getSystemReduceMotion(),
             hideWatermark:
               parsed && typeof parsed.hideWatermark === 'boolean'
                 ? parsed.hideWatermark
@@ -135,7 +124,6 @@
           )
 
           root.dataset.justifyText = settings.justifyText ? 'on' : 'off'
-          root.dataset.reduceMotion = settings.reduceMotion ? 'on' : 'off'
           root.dataset.hideWatermark = settings.hideWatermark ? 'on' : 'off'
 
           root.style.setProperty(
@@ -340,10 +328,6 @@
             <label class="reader-setting reader-setting--toggle">
               <span class="reader-setting__label">Justify text</span>
               <input type="checkbox" class="reader-setting__toggle" data-setting="justifyText" aria-label="Justify text" />
-            </label>
-            <label class="reader-setting reader-setting--toggle">
-              <span class="reader-setting__label">Reduce motion</span>
-              <input type="checkbox" class="reader-setting__toggle" data-setting="reduceMotion" aria-label="Reduce motion" />
             </label>
             <label class="reader-setting reader-setting--toggle">
               <span class="reader-setting__label">Hide decorative watermark</span>
