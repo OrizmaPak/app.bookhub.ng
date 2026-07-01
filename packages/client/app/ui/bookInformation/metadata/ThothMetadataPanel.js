@@ -140,6 +140,12 @@ const mappings = [
 const ThothMetadataPanel = ({ values }) => {
   const { bookId } = useParams()
   const readiness = readinessRows(values)
+  const missingLiveSyncRequirements = []
+
+  if (!values.publicationDate) {
+    missingLiveSyncRequirements.push('Publication date')
+  }
+
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
 
@@ -213,7 +219,8 @@ const ThothMetadataPanel = ({ values }) => {
     return JSON.stringify(result.payload, null, 2)
   }, [result])
 
-  const canSync = result?.connection?.ok
+  const canSync =
+    result?.connection?.ok && missingLiveSyncRequirements.length === 0
 
   return (
     <Wrapper>
@@ -284,6 +291,17 @@ const ThothMetadataPanel = ({ values }) => {
           payload, and run controlled Work sync.
         </Notice>
 
+        {missingLiveSyncRequirements.length ? (
+          <Alert
+            message="Live sync requirements"
+            showIcon
+            type="warning"
+            description={`Set ${missingLiveSyncRequirements.join(
+              ', ',
+            )} before running live Thoth sync.`}
+          />
+        ) : null}
+
         <Actions>
           <Button
             icon={<FileSearchOutlined />}
@@ -298,6 +316,11 @@ const ThothMetadataPanel = ({ values }) => {
             loading={syncingWork}
             onClick={handleSync}
             type="primary"
+            title={
+              missingLiveSyncRequirements.length
+                ? `Missing: ${missingLiveSyncRequirements.join(', ')}`
+                : ''
+            }
           >
             Sync to Thoth
           </Button>

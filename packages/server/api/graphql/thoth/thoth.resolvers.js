@@ -57,6 +57,20 @@ const thothConnectionStatusHandler = async (_, __, ctx) => {
   return getConnectionStatus()
 }
 
+const ensureLiveSyncReadiness = ({ book, doi }) => {
+  if (!doi) {
+    throw new Error(
+      'DOI is required before live Thoth sync. Set THOTH_DEFAULT_DOI for controlled testing.',
+    )
+  }
+
+  if (!book?.publicationDate) {
+    throw new Error(
+      'Publication date is required before live Thoth sync. Set it in Metadata and validate again.',
+    )
+  }
+}
+
 const thothSyncWorkHandler = async (_, { bookId, dryRun }, ctx) => {
   if (!ctx.userId) {
     throw new Error('Not authenticated')
@@ -71,10 +85,11 @@ const thothSyncWorkHandler = async (_, { bookId, dryRun }, ctx) => {
 
   const resolvedDoi = configuredDoi || null
 
-  if (!dryRun && !resolvedDoi) {
-    throw new Error(
-      'DOI is required before live Thoth sync. Set THOTH_DEFAULT_DOI for controlled testing.',
-    )
+  if (!dryRun) {
+    ensureLiveSyncReadiness({
+      book,
+      doi: resolvedDoi,
+    })
   }
 
   logger.info(
