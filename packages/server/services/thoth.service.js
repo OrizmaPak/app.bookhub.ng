@@ -8,6 +8,7 @@ const DEFAULT_THOTH_IMPRINT_ID =
 
 const DEFAULT_WORK_TYPE = process.env.THOTH_WORK_TYPE || 'MONOGRAPH'
 const DEFAULT_WORK_STATUS = process.env.THOTH_WORK_STATUS || 'ACTIVE'
+const DEFAULT_TEMP_DOI_PREFIX = process.env.THOTH_TEMP_DOI_PREFIX || '10.5555'
 
 const cleanObject = input => {
   return Object.fromEntries(
@@ -27,6 +28,24 @@ const normalizeDate = rawValue => {
   }
 
   return parsed.toISOString().slice(0, 10)
+}
+
+const sanitizeDoiSuffix = value => {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9./_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+const buildTemporaryDoi = bookId => {
+  const suffix = sanitizeDoiSuffix(bookId)
+
+  if (!suffix) {
+    return null
+  }
+
+  return `${DEFAULT_TEMP_DOI_PREFIX}/bookhub-temp.${suffix}`
 }
 
 const resolveAuth = () => {
@@ -252,6 +271,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
 }
 
 module.exports = {
+  buildTemporaryDoi,
   buildWorkPayload,
   getConnectionStatus,
   syncWork,

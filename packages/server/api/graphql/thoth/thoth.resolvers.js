@@ -3,7 +3,11 @@ const { logger } = require('@coko/server')
 const { getBook, getBookTitle, getBookSubtitle } = require('../../../controllers/book.controller')
 const { getObjectTeam } = require('../../../controllers/team.controller')
 const { isAdmin } = require('../../../controllers/user.controller')
-const { getConnectionStatus, syncWork } = require('../../../services/thoth.service')
+const {
+  buildTemporaryDoi,
+  getConnectionStatus,
+  syncWork,
+} = require('../../../services/thoth.service')
 
 const canSyncBookToThoth = async (bookId, userId) => {
   if (!userId) {
@@ -49,6 +53,14 @@ const getBookSnapshot = async bookId => {
   }
 }
 
+const resolveBookDoi = book => {
+  if (book?.doi) {
+    return book.doi
+  }
+
+  return buildTemporaryDoi(book?.id)
+}
+
 const thothConnectionStatusHandler = async (_, __, ctx) => {
   if (!ctx.userId) {
     throw new Error('Not authenticated')
@@ -59,9 +71,7 @@ const thothConnectionStatusHandler = async (_, __, ctx) => {
 
 const ensureLiveSyncReadiness = ({ book, doi }) => {
   if (!doi) {
-    throw new Error(
-      'DOI is required before live Thoth sync. Set THOTH_DEFAULT_DOI for controlled testing.',
-    )
+    throw new Error('A temporary DOI could not be generated for this book.')
   }
 
   if (!book?.publicationDate) {
@@ -79,11 +89,7 @@ const thothSyncWorkHandler = async (_, { bookId, dryRun }, ctx) => {
   await ensureSyncAccess(bookId, ctx.userId)
 
   const { book, title, subtitle } = await getBookSnapshot(bookId)
-
-  // Manual DOI phase: allow DOI from env fallback while product DOI fields are introduced.
-  const configuredDoi = process.env.THOTH_DEFAULT_DOI || null
-
-  const resolvedDoi = configuredDoi || null
+  const resolvedDoi = resolveBookDoi(book)
 
   if (!dryRun) {
     ensureLiveSyncReadiness({
