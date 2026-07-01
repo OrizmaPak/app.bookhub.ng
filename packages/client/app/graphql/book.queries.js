@@ -15,6 +15,9 @@ const GET_ENTIRE_BOOK = gql`
       id
       title
       subtitle
+      publicationDate
+      copyrightHolder
+      license
       podMetadata {
         authors
         bottomPage
@@ -259,6 +262,17 @@ const INGEST_WORD_FILES = gql`
   }
 `
 
+const UPDATE_BOOK_METADATA = gql`
+  mutation UpdateMetadata($input: MetadataInput!) {
+    updateMetadata(input: $input) {
+      id
+      publicationDate
+      copyrightHolder
+      license
+    }
+  }
+`
+
 const UPDATE_BOOK_POD_METADATA = gql`
   mutation UpdatePODMetadata($bookId: ID!, $metadata: PODMetadataInput!) {
     updatePODMetadata(bookId: $bookId, metadata: $metadata) {
@@ -464,6 +478,7 @@ export {
   UPDATE_SUBTITLE,
   ARCHIVE_BOOK,
   INGEST_WORD_FILES,
+  UPDATE_BOOK_METADATA,
   UPDATE_BOOK_POD_METADATA,
   UPLOAD_BOOK_THUMBNAIL,
   EXPORT_BOOK,

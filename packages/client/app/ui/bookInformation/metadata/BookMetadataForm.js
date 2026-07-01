@@ -7,7 +7,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
 import mapValues from 'lodash/mapValues'
-import { Form, Upload, Image } from 'antd'
+import { DatePicker, Form, Upload, Image } from 'antd'
 import { Box, Center, Input, TextArea } from '../../common'
 import CopyrightLicenseInput from './CopyrightLicenseInput'
 import ISBNList from './ISBNList'
@@ -16,6 +16,39 @@ import ThothMetadataPanel from './ThothMetadataPanel'
 const FormSection = styled.div`
   border-top: 2px solid ${th('colorText')};
 `
+
+const StyledDatePicker = styled(DatePicker)`
+  width: 100%;
+`
+
+const resolveDerivedMetadata = values => {
+  const licenseTypes = values.licenseTypes || {}
+  let license = ''
+  let copyrightHolder = ''
+
+  if (values.copyrightLicense === 'SCL') {
+    license = 'All rights reserved'
+    copyrightHolder = values.ncCopyrightHolder || ''
+  } else if (values.copyrightLicense === 'PD') {
+    license =
+      values.publicDomainType === 'cc0'
+        ? 'CC0 1.0 Universal'
+        : 'Public Domain Mark 1.0'
+    copyrightHolder =
+      values.saCopyrightHolder || values.ncCopyrightHolder || ''
+  } else if (values.copyrightLicense === 'CC') {
+    const flags = [
+      licenseTypes.NC ? 'NC' : null,
+      licenseTypes.ND ? 'ND' : null,
+      licenseTypes.SA ? 'SA' : null,
+    ].filter(Boolean)
+
+    license = flags.length > 0 ? `CC BY-${flags.join('-')} 4.0` : 'CC BY 4.0'
+    copyrightHolder = values.saCopyrightHolder || ''
+  }
+
+  return { license, copyrightHolder }
+}
 
 const BookMetadataForm = ({
   initialValues,
@@ -33,7 +66,7 @@ const BookMetadataForm = ({
   const { coverUrl, ...rest } = initialValues
 
   const transformedInitialValues = mapValues(rest, (value, key) => {
-    const dateFields = ['ncCopyrightYear', 'saCopyrightYear']
+    const dateFields = ['ncCopyrightYear', 'saCopyrightYear', 'publicationDate']
     return dateFields.includes(key) && dayjs(value).isValid()
       ? dayjs(value)
       : value
@@ -42,6 +75,8 @@ const BookMetadataForm = ({
   if (isEmpty(transformedInitialValues.isbns)) {
     transformedInitialValues.isbns = []
   }
+
+  const [previewValues, setPreviewValues] = useState(transformedInitialValues)
 
   // useEffect(() => {
   //   if (!isEqual(initialFormValues, transformedInitialValues)) {
@@ -61,6 +96,11 @@ const BookMetadataForm = ({
         },
       ])
     }
+    setPreviewValues(currentValues => ({
+      ...currentValues,
+      ...transformedInitialValues,
+      coverUrl,
+    }))
   }, [coverUrl])
 
   const [cover, setCover] = useState(
@@ -103,6 +143,22 @@ const BookMetadataForm = ({
 
   const handleFormUpdate = () => {
     setTimeout(() => {
+      const currentValues = form.getFieldsValue(true)
+      const derived = resolveDerivedMetadata(currentValues)
+
+      if (
+        currentValues.license !== derived.license ||
+        currentValues.copyrightHolder !== derived.copyrightHolder
+      ) {
+        form.setFieldsValue(derived)
+      }
+
+      setPreviewValues({
+        ...currentValues,
+        ...derived,
+        coverUrl,
+      })
+
       form
         .validateFields()
         .then(values => {
@@ -234,15 +290,6 @@ const BookMetadataForm = ({
           </FormSection>
 
           <FormSection>
-            <h2>Thoth Metadata</h2>
-            <p>
-              This is a preview of how the book metadata will be prepared for
-              Thoth from this metadata workspace.
-            </p>
-            <ThothMetadataPanel values={{ coverUrl, ...transformedInitialValues }} />
-          </FormSection>
-
-          <FormSection>
             <h2>{t('sections.copyrightPage.heading')}</h2>
             <Form.Item
               label={t('sections.copyrightPage.isbnList')}
@@ -286,6 +333,42 @@ const BookMetadataForm = ({
             >
               <CopyrightLicenseInput canChangeMetadata={canChangeMetadata} />
             </Form.Item>
+            <Form.Item
+              label="Publication date"
+              labelCol={{ span: 24 }}
+              name="publicationDate"
+              wrapperCol={{ span: 24 }}
+            >
+              <StyledDatePicker
+                disabled={!canChangeMetadata}
+                format="YYYY-MM-DD"
+              />
+            </Form.Item>
+            <Form.Item
+              label="Resolved copyright holder"
+              labelCol={{ span: 24 }}
+              name="copyrightHolder"
+              wrapperCol={{ span: 24 }}
+            >
+              <Input disabled />
+            </Form.Item>
+            <Form.Item
+              label="Resolved license"
+              labelCol={{ span: 24 }}
+              name="license"
+              wrapperCol={{ span: 24 }}
+            >
+              <Input disabled />
+            </Form.Item>
+          </FormSection>
+
+          <FormSection>
+            <h2>Thoth Metadata</h2>
+            <p>
+              This is a preview of how the book metadata will be prepared for
+              Thoth from this metadata workspace.
+            </p>
+            <ThothMetadataPanel values={previewValues} />
           </FormSection>
         </Form>
       </Center>
@@ -309,6 +392,9 @@ BookMetadataForm.propTypes = {
     ).isRequired,
     topPage: PropTypes.string,
     bottomPage: PropTypes.string,
+    publicationDate: PropTypes.oneOfType([PropTypes.string, PropTypes.shape({})]),
+    copyrightHolder: PropTypes.string,
+    license: PropTypes.string,
     copyrightLicense: PropTypes.oneOf(['SCL', 'PD', 'CC', '']),
     ncCopyrightHolder: PropTypes.string,
     ncCopyrightYear: PropTypes.string,

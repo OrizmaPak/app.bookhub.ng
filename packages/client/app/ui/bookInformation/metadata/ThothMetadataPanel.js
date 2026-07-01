@@ -116,6 +116,9 @@ const readinessRows = values => [
   ['Authors', values.authors ? 'Ready' : 'Missing'],
   ['ISBN records', values.isbns?.length ? `${values.isbns.length} prepared` : 'None added'],
   ['Cover image', values.coverUrl ? 'Ready' : 'Missing'],
+  ['Publication date', values.publicationDate ? 'Ready' : 'Missing'],
+  ['Resolved license', values.license ? values.license : 'Missing'],
+  ['Copyright holder', values.copyrightHolder ? values.copyrightHolder : 'Missing'],
 ]
 
 const mappings = [
@@ -233,6 +236,14 @@ const ThothMetadataPanel = ({ values }) => {
             <strong>Primary author string</strong>
             <Text>{values.authors || 'No author string yet'}</Text>
           </StatusCard>
+          <StatusCard>
+            <strong>Publication date</strong>
+            <Text>{values.publicationDate || 'Not set yet'}</Text>
+          </StatusCard>
+          <StatusCard>
+            <strong>Resolved license</strong>
+            <Text>{values.license || 'Not set yet'}</Text>
+          </StatusCard>
         </StatusGrid>
 
         <div>
@@ -335,6 +346,9 @@ ThothMetadataPanel.propTypes = {
     title: PropTypes.string,
     authors: PropTypes.string,
     coverUrl: PropTypes.string,
+    publicationDate: PropTypes.oneOfType([PropTypes.string, PropTypes.shape({})]),
+    copyrightHolder: PropTypes.string,
+    license: PropTypes.string,
     isbns: PropTypes.arrayOf(PropTypes.shape()),
   }),
 }

@@ -22,6 +22,7 @@ import {
   DELETE_BOOK_COMPONENT,
   CREATE_BOOK_COMPONENT,
   INGEST_WORD_FILES,
+  UPDATE_BOOK_METADATA,
   UPDATE_BOOK_POD_METADATA,
   UPDATE_BOOK_COMPONENTS_ORDER,
   UPLOAD_FILES,
@@ -91,14 +92,63 @@ const calculateEditorMode = (lock, canModify, currentUser, tabId) => {
     : 'preview'
 }
 
-const constructMetadataValues = (title, subtitle, podMetadata, cover) => {
+const constructMetadataValues = (book, cover) => {
+  const podMetadata = book?.podMetadata || {}
+
   return {
-    title,
-    subtitle,
+    title: book?.title,
+    subtitle: book?.subtitle,
     coverUrl: cover?.length ? cover[0].coverUrl : '',
     coverAlt: cover?.length ? cover[0].altText : '',
+    publicationDate: book?.publicationDate || null,
+    copyrightHolder: book?.copyrightHolder || '',
+    license: book?.license || '',
     ...podMetadata,
   }
+}
+
+const formatDateValue = value => {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value?.format === 'function') {
+    return value.format('YYYY-MM-DD')
+  }
+
+  return value
+}
+
+const resolveDerivedMetadata = metadata => {
+  const licenseTypes = metadata.licenseTypes || {}
+
+  let license = metadata.license || ''
+  let copyrightHolder = metadata.copyrightHolder || ''
+
+  if (metadata.copyrightLicense === 'SCL') {
+    license = 'All rights reserved'
+    copyrightHolder = metadata.ncCopyrightHolder || copyrightHolder
+  } else if (metadata.copyrightLicense === 'PD') {
+    license =
+      metadata.publicDomainType === 'cc0'
+        ? 'CC0 1.0 Universal'
+        : 'Public Domain Mark 1.0'
+  } else if (metadata.copyrightLicense === 'CC') {
+    const flags = [
+      licenseTypes.NC ? 'NC' : null,
+      licenseTypes.ND ? 'ND' : null,
+      licenseTypes.SA ? 'SA' : null,
+    ].filter(Boolean)
+
+    license = flags.length > 0 ? `CC BY-${flags.join('-')} 4.0` : 'CC BY 4.0'
+    copyrightHolder = metadata.saCopyrightHolder || copyrightHolder
+  }
+
+  return { license, copyrightHolder }
 }
 
 let issueInCommunicationModal
@@ -310,9 +360,7 @@ const ProducerPage = () => {
     !selectedChapterId || (editorMode && editorMode === 'preview') || !canModify
 
   const bookMetadataValues = constructMetadataValues(
-    bookQueryData?.getBook.title,
-    bookQueryData?.getBook.subtitle,
-    bookQueryData?.getBook?.podMetadata,
+    bookQueryData?.getBook,
     bookQueryData?.getBook?.cover,
   )
 
@@ -530,6 +578,14 @@ const ProducerPage = () => {
     },
   })
 
+  const [updateBookMetadata] = useMutation(UPDATE_BOOK_METADATA, {
+    onError: err => {
+      if (err.toString().includes('Not Authorised')) {
+        showUnauthorizedActionModal(false)
+      } else if (!reconnecting) showGenericErrorModal()
+    },
+  })
+
   const [lockBookComponent] = useMutation(LOCK_BOOK_COMPONENT_POD, {
     refetchQueries: [GET_ENTIRE_BOOK],
     onError: () => {},
@@ -726,7 +782,15 @@ const ProducerPage = () => {
   }
 
   const onSubmitBookMetadata = debounce(data => {
-    const { title, subtitle, coverAlt, ...rest } = data
+    const {
+      title,
+      subtitle,
+      coverAlt,
+      publicationDate,
+      copyrightHolder,
+      license,
+      ...rest
+    } = data
 
     if (!canModify) {
       showUnauthorizedActionModal(false)
@@ -745,7 +809,34 @@ const ProducerPage = () => {
       updateCoverAlt({ variables: { id: bookId, coverAlt } })
     }
 
-    updatePODMetadata({ variables: { bookId, metadata: rest } })
+    const { license: derivedLicense, copyrightHolder: derivedCopyrightHolder } =
+      resolveDerivedMetadata({
+        ...rest,
+        copyrightHolder,
+        license,
+      })
+
+    updateBookMetadata({
+      variables: {
+        input: {
+          id: bookId,
+          publicationDate: formatDateValue(publicationDate),
+          copyrightHolder: derivedCopyrightHolder || null,
+          license: derivedLicense || null,
+        },
+      },
+    })
+
+    updatePODMetadata({
+      variables: {
+        bookId,
+        metadata: {
+          ...rest,
+          ncCopyrightYear: formatDateValue(rest.ncCopyrightYear),
+          saCopyrightYear: formatDateValue(rest.saCopyrightYear),
+        },
+      },
+    })
   }, 1000)
 
   const showOfflineModal = () => {
