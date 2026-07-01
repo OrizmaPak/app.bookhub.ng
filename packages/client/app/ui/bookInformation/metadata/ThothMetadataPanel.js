@@ -121,6 +121,13 @@ const readinessRows = values => [
   ['Copyright holder', values.copyrightHolder ? values.copyrightHolder : 'Missing'],
 ]
 
+const displayValue = value => {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (typeof value?.format === 'function') return value.format('YYYY-MM-DD')
+  return String(value)
+}
+
 const mappings = [
   ['Book title', 'Thoth Work title'],
   ['Subtitle', 'Thoth Work subtitle'],
@@ -238,7 +245,7 @@ const ThothMetadataPanel = ({ values }) => {
           </StatusCard>
           <StatusCard>
             <strong>Publication date</strong>
-            <Text>{values.publicationDate || 'Not set yet'}</Text>
+            <Text>{displayValue(values.publicationDate) || 'Not set yet'}</Text>
           </StatusCard>
           <StatusCard>
             <strong>Resolved license</strong>
