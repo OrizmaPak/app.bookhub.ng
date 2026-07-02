@@ -8,7 +8,9 @@ const DEFAULT_THOTH_IMPRINT_ID =
 
 const DEFAULT_WORK_TYPE = process.env.THOTH_WORK_TYPE || 'MONOGRAPH'
 const DEFAULT_WORK_STATUS = process.env.THOTH_WORK_STATUS || 'ACTIVE'
-const DEFAULT_TEMP_DOI_PREFIX = process.env.THOTH_TEMP_DOI_PREFIX || '10.5555'
+const DEFAULT_THOTH_EDITION = Number(process.env.THOTH_DEFAULT_EDITION) || 1
+const DEFAULT_TEMP_DOI_PREFIX =
+  process.env.THOTH_TEMP_DOI_PREFIX || 'https://doi.org/10.5555'
 
 const cleanObject = input => {
   return Object.fromEntries(
@@ -38,6 +40,24 @@ const sanitizeDoiSuffix = value => {
     .replace(/^-+|-+$/g, '')
 }
 
+const normalizeDoi = value => {
+  const doi = String(value || '').trim()
+
+  if (!doi) {
+    return null
+  }
+
+  if (/^https:\/\/doi\.org\/10\.\d{4,9}\//i.test(doi)) {
+    return doi
+  }
+
+  if (/^10\.\d{4,9}\//.test(doi)) {
+    return `https://doi.org/${doi}`
+  }
+
+  return doi
+}
+
 const buildTemporaryDoi = bookId => {
   const suffix = sanitizeDoiSuffix(bookId)
 
@@ -45,7 +65,9 @@ const buildTemporaryDoi = bookId => {
     return null
   }
 
-  return `${DEFAULT_TEMP_DOI_PREFIX}/bookhub-temp.${suffix}`
+  return normalizeDoi(
+    `${DEFAULT_TEMP_DOI_PREFIX.replace(/\/$/, '')}/bookhub-temp.${suffix}`,
+  )
 }
 
 const resolveAuth = () => {
@@ -128,6 +150,7 @@ const buildWorkPayload = ({ book, title, subtitle }) => {
     workStatus: DEFAULT_WORK_STATUS,
     imprintId: DEFAULT_THOTH_IMPRINT_ID,
     reference: `bookhub:${book.id}`,
+    edition: Number(book.edition) || DEFAULT_THOTH_EDITION,
     publicationDate: normalizeDate(book.publicationDate),
     landingPage: getLandingPage(book),
     license: book.license,
@@ -194,9 +217,10 @@ const findWorkByDoi = async doi => {
 
 const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
   const payload = buildWorkPayload({ book, title, subtitle })
+  const normalizedDoi = normalizeDoi(doi)
 
-  if (doi) {
-    payload.doi = doi
+  if (normalizedDoi) {
+    payload.doi = normalizedDoi
   }
 
   const connection = await getConnectionStatus()
@@ -218,7 +242,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
     throw new Error(`Thoth connection failed: ${connection.message}`)
   }
 
-  const existingWorkId = await findWorkByDoi(doi)
+  const existingWorkId = await findWorkByDoi(normalizedDoi)
 
   if (existingWorkId) {
     const result = await executeThothGraphQL({
@@ -274,5 +298,6 @@ module.exports = {
   buildTemporaryDoi,
   buildWorkPayload,
   getConnectionStatus,
+  normalizeDoi,
   syncWork,
 }

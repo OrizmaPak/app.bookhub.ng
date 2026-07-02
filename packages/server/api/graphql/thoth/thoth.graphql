@@ -10,6 +10,7 @@ type ThothWorkPayloadPreview {
   workStatus: String!
   imprintId: String!
   reference: String
+  edition: Int
   doi: String
   publicationDate: String
   landingPage: String

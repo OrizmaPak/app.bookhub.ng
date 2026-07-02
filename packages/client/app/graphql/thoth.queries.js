@@ -29,6 +29,7 @@ export const THOTH_SYNC_WORK = gql`
         workStatus
         imprintId
         reference
+        edition
         doi
         publicationDate
         landingPage
