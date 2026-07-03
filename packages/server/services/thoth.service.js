@@ -21,6 +21,18 @@ const CC_LICENSE_URLS = {
   'BY-SA': 'https://creativecommons.org/licenses/by-sa/4.0/',
 }
 
+const LICENSE_LABEL_URLS = {
+  'CC BY 4.0': CC_LICENSE_URLS.BY,
+  'CC BY-NC 4.0': CC_LICENSE_URLS['BY-NC'],
+  'CC BY-NC-ND 4.0': CC_LICENSE_URLS['BY-NC-ND'],
+  'CC BY-NC-SA 4.0': CC_LICENSE_URLS['BY-NC-SA'],
+  'CC BY-ND 4.0': CC_LICENSE_URLS['BY-ND'],
+  'CC BY-SA 4.0': CC_LICENSE_URLS['BY-SA'],
+  'CC0 1.0 Universal': 'https://creativecommons.org/publicdomain/zero/1.0/',
+  'Public Domain Mark 1.0':
+    'https://creativecommons.org/publicdomain/mark/1.0/',
+}
+
 const cleanObject = input => {
   return Object.fromEntries(
     Object.entries(input).filter(
@@ -188,16 +200,25 @@ const normalizeLicenseForThoth = book => {
     return book.license.trim()
   }
 
+  if (book?.license) {
+    return LICENSE_LABEL_URLS[book.license.trim()] || null
+  }
+
   return null
 }
 
 const getUnmappedLicenseLabel = book => {
   const podMetadata = book?.podMetadata || {}
+  const normalizedLicense = normalizeLicenseForThoth(book)
+
+  if (normalizedLicense || podMetadata.copyrightLicense === 'SCL') {
+    return null
+  }
 
   if (
     podMetadata.copyrightLicense &&
     podMetadata.copyrightLicense !== 'SCL' &&
-    !normalizeLicenseForThoth(book)
+    !normalizedLicense
   ) {
     return podMetadata.copyrightLicense
   }

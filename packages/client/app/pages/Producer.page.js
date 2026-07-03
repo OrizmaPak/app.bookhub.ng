@@ -123,6 +123,31 @@ const formatDateValue = value => {
   return value
 }
 
+const formatDateTimeValue = value => {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    if (/^\d{4}$/.test(value)) {
+      return `${value}-01-01T00:00:00.000Z`
+    }
+
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString()
+  }
+
+  if (typeof value?.startOf === 'function') {
+    return value.startOf('year').toISOString()
+  }
+
+  if (typeof value?.toISOString === 'function') {
+    return value.toISOString()
+  }
+
+  return value
+}
+
 const resolveDerivedMetadata = metadata => {
   const licenseTypes = metadata.licenseTypes || {}
 
@@ -832,8 +857,8 @@ const ProducerPage = () => {
         bookId,
         metadata: {
           ...rest,
-          ncCopyrightYear: formatDateValue(rest.ncCopyrightYear),
-          saCopyrightYear: formatDateValue(rest.saCopyrightYear),
+          ncCopyrightYear: formatDateTimeValue(rest.ncCopyrightYear),
+          saCopyrightYear: formatDateTimeValue(rest.saCopyrightYear),
         },
       },
     })
