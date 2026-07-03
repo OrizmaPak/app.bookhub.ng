@@ -79,6 +79,10 @@ const ThothSection = styled.section`
   grid-column: 1 / -1;
 `
 
+const FullWidthSection = styled.section`
+  grid-column: 1 / -1;
+`
+
 const StyledDatePicker = styled(DatePicker)`
   width: 100%;
 `
@@ -745,6 +749,9 @@ const BookMetadataForm = ({
                 </Form.Item>
               </FormSection>
 
+            </MetadataColumn>
+
+            <FullWidthSection>
               <FormSection>
                 <h2>Derivable metadata</h2>
                 <SectionHint>
@@ -843,7 +850,7 @@ const BookMetadataForm = ({
                   )}
                 </Form.List>
               </FormSection>
-            </MetadataColumn>
+            </FullWidthSection>
 
             <ThothSection>
               <ThothMetadataPanel values={previewValues} />
