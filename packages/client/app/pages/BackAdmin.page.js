@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
 import styled from 'styled-components'
+import { useHistory, useLocation } from 'react-router-dom'
 import {
   Alert,
   Button,
@@ -38,6 +39,7 @@ import {
   BACK_ADMIN_VALIDATE,
   BACK_ADMIN_VERIFY_OTP,
 } from '../graphql'
+import ThothBrowserPanel from '../ui/backAdmin/ThothBrowserPanel'
 
 const { TextArea } = Input
 
@@ -89,13 +91,20 @@ const StatSvg = ({ points }) => {
 }
 
 const BackAdminPage = () => {
+  const history = useHistory()
+  const location = useLocation()
+  const allowedPanels = ['home', 'manage', 'health', 'thoth']
+  const getPanelFromSearch = search => {
+    const panelValue = new URLSearchParams(search).get('panel')
+    return allowedPanels.includes(panelValue) ? panelValue : 'home'
+  }
   const [emailInput, setEmailInput] = useState('')
   const [otpInput, setOtpInput] = useState('')
   const [otpRequestedFor, setOtpRequestedFor] = useState('')
   const [sessionToken, setSessionToken] = useState(
     () => sessionStorage.getItem('backAdminSessionToken') || '',
   )
-  const [panel, setPanel] = useState('home')
+  const [panel, setPanel] = useState(() => getPanelFromSearch(location.search))
   const [selectedUserIds, setSelectedUserIds] = useState([])
   const [emailAudience, setEmailAudience] = useState('selected')
   const [emailSubject, setEmailSubject] = useState('')
@@ -113,6 +122,28 @@ const BackAdminPage = () => {
     selectedHealthService === 'all' ? 'bookhub-runtime' : selectedHealthService
 
   const isUnlocked = Boolean(sessionToken)
+
+  useEffect(() => {
+    const nextPanel = getPanelFromSearch(location.search)
+    if (nextPanel !== panel) {
+      setPanel(nextPanel)
+    }
+  }, [location.search, panel])
+
+  const navigatePanel = value => {
+    const nextPanel = allowedPanels.includes(value) ? value : 'home'
+    setPanel(nextPanel)
+    const params = new URLSearchParams(location.search)
+    if (nextPanel === 'home') {
+      params.delete('panel')
+    } else {
+      params.set('panel', nextPanel)
+    }
+    history.replace({
+      pathname: location.pathname,
+      search: params.toString() ? `?${params.toString()}` : '',
+    })
+  }
 
   const [requestOtp, { loading: requestOtpLoading }] = useMutation(BACK_ADMIN_REQUEST_OTP)
   const [verifyOtp, { loading: verifyOtpLoading }] = useMutation(BACK_ADMIN_VERIFY_OTP)
@@ -567,7 +598,7 @@ const BackAdminPage = () => {
               onClick={() => {
                 sessionStorage.removeItem('backAdminSessionToken')
                 setSessionToken('')
-                setPanel('home')
+                navigatePanel('home')
               }}
             >
               Log out
@@ -577,11 +608,12 @@ const BackAdminPage = () => {
 
         <Segmented
           value={panel}
-          onChange={value => setPanel(value)}
+          onChange={value => navigatePanel(value)}
           options={[
             { value: 'home', label: 'Home' },
             { value: 'manage', label: 'Manage Instance Activity' },
             { value: 'health', label: 'Instance Health Check and Logs' },
+            { value: 'thoth', label: 'Thoth Metadata Browser' },
           ]}
         />
 
@@ -592,7 +624,7 @@ const BackAdminPage = () => {
                 <Typography.Paragraph>
                   Control sign-in/sign-up, manage users, force logout, and queue emails.
                 </Typography.Paragraph>
-                <Button type="primary" onClick={() => setPanel('manage')}>
+                <Button type="primary" onClick={() => navigatePanel('manage')}>
                   Open Manage Instance Activity
                 </Button>
               </Card>
@@ -602,8 +634,18 @@ const BackAdminPage = () => {
                 <Typography.Paragraph>
                   View service health, load trends, and instance monitoring logs.
                 </Typography.Paragraph>
-                <Button onClick={() => setPanel('health')}>
+                <Button onClick={() => navigatePanel('health')}>
                   Open Instance Health Check and Logs
+                </Button>
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card title="Thoth Metadata Browser">
+                <Typography.Paragraph>
+                  Browse Thoth test/live metadata records without writing GraphQL.
+                </Typography.Paragraph>
+                <Button onClick={() => navigatePanel('thoth')}>
+                  Open Thoth Metadata Browser
                 </Button>
               </Card>
             </Col>
@@ -838,6 +880,8 @@ const BackAdminPage = () => {
             </Card>
           </>
         )}
+
+        {panel === 'thoth' && <ThothBrowserPanel sessionToken={sessionToken} />}
       </Space>
     </Wrapper>
   )

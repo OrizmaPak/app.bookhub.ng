@@ -136,6 +136,150 @@ export const BACK_ADMIN_INSTANCE_LOGS = gql`
   }
 `
 
+export const BACK_ADMIN_THOTH_STATUS = gql`
+  query BackAdminThothStatus($sessionToken: String!) {
+    backAdminThothStatus(sessionToken: $sessionToken) {
+      defaultEnvironment
+      environments {
+        key
+        label
+        endpoint
+        ok
+        message
+        publisherId
+        publisherName
+        imprintId
+        imprintName
+      }
+    }
+  }
+`
+
+export const BACK_ADMIN_THOTH_WORKS = gql`
+  query BackAdminThothWorks(
+    $sessionToken: String!
+    $environment: String
+    $search: String
+    $publisherOnly: Boolean
+    $syncedOnly: Boolean
+    $page: Int
+    $pageSize: Int
+  ) {
+    backAdminThothWorks(
+      sessionToken: $sessionToken
+      environment: $environment
+      search: $search
+      publisherOnly: $publisherOnly
+      syncedOnly: $syncedOnly
+      page: $page
+      pageSize: $pageSize
+    ) {
+      environment
+      page
+      pageSize
+      totalCount
+      items {
+        workId
+        title
+        subtitle
+        doi
+        reference
+        publicationDate
+        updatedAt
+        landingPage
+        publisherId
+        publisherName
+        imprintId
+        imprintName
+        isBookHubPublisher
+        isBookHubSynced
+      }
+    }
+  }
+`
+
+export const BACK_ADMIN_THOTH_WORK = gql`
+  query BackAdminThothWork($sessionToken: String!, $environment: String, $workId: ID!) {
+    backAdminThothWork(
+      sessionToken: $sessionToken
+      environment: $environment
+      workId: $workId
+    ) {
+      workId
+      title
+      subtitle
+      doi
+      reference
+      publicationDate
+      updatedAt
+      landingPage
+      publisherId
+      publisherName
+      imprintId
+      imprintName
+      isBookHubPublisher
+      isBookHubSynced
+      workType
+      workStatus
+      edition
+      license
+      copyrightHolder
+      generalNote
+      coverCaption
+      pageCount
+      pageBreakdown
+      imageCount
+      tableCount
+      audioCount
+      videoCount
+      firstPage
+      lastPage
+      pageInterval
+      lccn
+      oclc
+      titles {
+        titleId
+        fullTitle
+        title
+        subtitle
+        canonical
+        localeCode
+      }
+      contributors {
+        contributionId
+        fullName
+        contributionType
+        contributionOrdinal
+        mainContribution
+        firstName
+        lastName
+      }
+      publications {
+        publicationId
+        publicationType
+        isbn
+        updatedAt
+        locations {
+          locationId
+          landingPage
+          fullTextUrl
+          locationPlatform
+          canonical
+        }
+      }
+      subjects {
+        subjectType
+        subjectCode
+        subjectOrdinal
+      }
+      languages {
+        languageCode
+        languageRelation
+      }
+    }
+  }
+`
+
 export const BACK_ADMIN_SET_USER_ACTIVE = gql`
   mutation BackAdminSetUserActive(
     $sessionToken: String!

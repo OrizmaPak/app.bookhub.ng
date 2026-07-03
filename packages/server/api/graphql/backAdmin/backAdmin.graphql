@@ -80,6 +80,134 @@ type BackAdminInstanceLog {
   latencyMs: Int
 }
 
+type BackAdminThothEnvironmentStatus {
+  key: String!
+  label: String!
+  endpoint: String!
+  ok: Boolean!
+  message: String!
+  publisherId: String!
+  publisherName: String
+  imprintId: String!
+  imprintName: String
+}
+
+type BackAdminThothStatus {
+  defaultEnvironment: String
+  environments: [BackAdminThothEnvironmentStatus!]!
+}
+
+type BackAdminThothWorkSummary {
+  workId: ID!
+  title: String!
+  subtitle: String
+  doi: String
+  reference: String
+  publicationDate: String
+  updatedAt: String
+  landingPage: String
+  publisherId: String
+  publisherName: String
+  imprintId: String
+  imprintName: String
+  isBookHubPublisher: Boolean!
+  isBookHubSynced: Boolean!
+}
+
+type BackAdminThothTitle {
+  titleId: ID
+  fullTitle: String!
+  title: String!
+  subtitle: String
+  canonical: Boolean!
+  localeCode: String!
+}
+
+type BackAdminThothContributor {
+  contributionId: ID!
+  fullName: String!
+  contributionType: String!
+  contributionOrdinal: Int!
+  mainContribution: Boolean!
+  firstName: String
+  lastName: String!
+}
+
+type BackAdminThothLocation {
+  locationId: ID!
+  landingPage: String
+  fullTextUrl: String
+  locationPlatform: String!
+  canonical: Boolean!
+}
+
+type BackAdminThothPublication {
+  publicationId: ID!
+  publicationType: String!
+  isbn: String
+  updatedAt: String!
+  locations: [BackAdminThothLocation!]!
+}
+
+type BackAdminThothSubject {
+  subjectType: String!
+  subjectCode: String!
+  subjectOrdinal: Int!
+}
+
+type BackAdminThothLanguage {
+  languageCode: String!
+  languageRelation: String!
+}
+
+type BackAdminThothWorkDetail {
+  workId: ID!
+  title: String!
+  subtitle: String
+  doi: String
+  reference: String
+  publicationDate: String
+  updatedAt: String
+  landingPage: String
+  publisherId: String
+  publisherName: String
+  imprintId: String
+  imprintName: String
+  isBookHubPublisher: Boolean!
+  isBookHubSynced: Boolean!
+  workType: String!
+  workStatus: String!
+  edition: Int
+  license: String
+  copyrightHolder: String
+  generalNote: String
+  coverCaption: String
+  pageCount: Int
+  pageBreakdown: String
+  imageCount: Int
+  tableCount: Int
+  audioCount: Int
+  videoCount: Int
+  firstPage: String
+  lastPage: String
+  pageInterval: String
+  lccn: String
+  oclc: String
+  titles: [BackAdminThothTitle!]!
+  contributors: [BackAdminThothContributor!]!
+  publications: [BackAdminThothPublication!]!
+  subjects: [BackAdminThothSubject!]!
+  languages: [BackAdminThothLanguage!]!
+}
+
+type BackAdminThothWorksResult {
+  environment: String!
+  page: Int!
+  pageSize: Int!
+  totalCount: Int!
+  items: [BackAdminThothWorkSummary!]!
+}
+
 extend type Query {
   backAdminValidate(sessionToken: String!): Boolean!
   backAdminStats(sessionToken: String!): BackAdminStats!
@@ -97,6 +225,21 @@ extend type Query {
     service: String
     limit: Int
   ): [BackAdminInstanceLog!]!
+  backAdminThothStatus(sessionToken: String!): BackAdminThothStatus!
+  backAdminThothWorks(
+    sessionToken: String!
+    environment: String
+    search: String
+    publisherOnly: Boolean
+    syncedOnly: Boolean
+    page: Int
+    pageSize: Int
+  ): BackAdminThothWorksResult!
+  backAdminThothWork(
+    sessionToken: String!
+    environment: String
+    workId: ID!
+  ): BackAdminThothWorkDetail!
   publicAccessControls: BackAdminAccess!
 }
 
