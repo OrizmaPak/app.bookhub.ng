@@ -14,6 +14,7 @@ const omitBy = require('lodash/omitBy')
 const isNil = require('lodash/isNil')
 const config = require('config')
 const BPromise = require('bluebird')
+const cheerio = require('cheerio')
 const fs = require('fs-extra')
 const path = require('path')
 
@@ -110,6 +111,99 @@ const equalArrays = (a, b) => {
   b.sort(isbnSorter)
 
   return JSON.stringify(a) === JSON.stringify(b)
+}
+
+const countPdfPagesFromFile = async filePath => {
+  if (!filePath) {
+    return null
+  }
+
+  try {
+    const buffer = await fs.readFile(filePath)
+    const content = buffer.toString('latin1')
+    const matches = content.match(/\/Type\s*\/Page\b/g)
+
+    return matches ? matches.length : null
+  } catch (error) {
+    logger.warn(`${BOOK_CONTROLLER} countPdfPagesFromFile: ${error.message}`)
+    return null
+  }
+}
+
+const deriveBookContentMetrics = book => {
+  const chapters = Array.from(book.divisions.get('body').bookComponents).map(
+    ch => ch[1],
+  )
+
+  const html = chapters.map(chapter => `${chapter?.content || ''}`).join('\n')
+  const $ = cheerio.load(html)
+  const sources = $('source').toArray()
+
+  return {
+    imageCount: $('img').length,
+    tableCount: $('table').length,
+    audioCount:
+      $('audio').length +
+      sources.filter(node =>
+        `${node.attribs?.type || ''}`.startsWith('audio/'),
+      ).length,
+    videoCount:
+      $('video').length +
+      sources.filter(node =>
+        `${node.attribs?.type || ''}`.startsWith('video/'),
+      ).length,
+  }
+}
+
+const updateDerivableMetadataBindings = async (
+  bookId,
+  { sourceFormat, profileId, metrics = {} },
+) => {
+  if (!sourceFormat || !profileId) {
+    return null
+  }
+
+  const book = await Book.findById(bookId)
+  const podMetadata = book?.podMetadata || {}
+  const existingBindings = podMetadata.derivableMetadata || []
+  let changed = false
+
+  const updatedBindings = existingBindings.map(item => {
+    if (
+      item?.sourceFormat !== sourceFormat ||
+      item?.profileId !== profileId ||
+      item?.syncOnPublish === false
+    ) {
+      return item
+    }
+
+    const nextValue = metrics[item.key]
+
+    if (!Number.isFinite(nextValue)) {
+      return item
+    }
+
+    changed = true
+
+    return {
+      ...item,
+      value: nextValue,
+      updatedAt: new Date().toISOString(),
+    }
+  })
+
+  if (!changed) {
+    return null
+  }
+
+  await Book.patchAndFetchById(bookId, {
+    podMetadata: {
+      ...podMetadata,
+      derivableMetadata: updatedBindings,
+    },
+  })
+
+  return updatedBindings
 }
 
 const defaultLevelOneItem = {
@@ -1077,20 +1171,51 @@ const exportBook = async (
   fileExtension,
   icmlNotes,
   additionalExportOptions,
+  profileId = null,
   options = {},
 ) => {
   try {
     const { trx } = options
+
     return useTransaction(
-      async tr =>
-        exporter(
+      async tr => {
+        const result = await exporter(
           bookId,
           templateId,
           previewer,
           fileExtension,
           icmlNotes,
           additionalExportOptions,
-        ),
+        )
+
+        if (result && ['pdf', 'epub'].includes(fileExtension)) {
+
+          const book = await bookConstructor(bookId)
+          const contentMetrics = deriveBookContentMetrics(book)
+
+          const pdfMetrics =
+            fileExtension === 'pdf'
+              ? {
+                  pageCount: await countPdfPagesFromFile(
+                    result.localPath
+                      ? path.join(`${process.cwd()}`, result.localPath)
+                      : null,
+                  ),
+                }
+              : {}
+
+          await updateDerivableMetadataBindings(bookId, {
+            sourceFormat: fileExtension,
+            profileId,
+            metrics: {
+              ...contentMetrics,
+              ...pdfMetrics,
+            },
+          })
+        }
+
+        return result
+      },
       { trx, passedTrxOnly: true },
     )
   } catch (e) {
@@ -2034,6 +2159,13 @@ const publishOnline = async (
     const response = await flaxHandler(data, { action: 'publish' })
 
     if (response.status === 200) {
+
+      const contentMetrics = deriveBookContentMetrics(book)
+
+      const pdfPageCount = includePdf
+        ? await countPdfPagesFromFile(pdfFilePath)
+        : null
+
       await fs.remove(templateFiles.tempAssetsPath)
 
       const publishedBookUrl = `${response.serviceBaseUrl}${flaxBookPathPrefix(
@@ -2048,6 +2180,31 @@ const publishOnline = async (
         profileId,
         publishedBookUrl,
       )
+
+      await updateDerivableMetadataBindings(bookId, {
+        sourceFormat: 'web',
+        profileId,
+        metrics: contentMetrics,
+      })
+
+      if (includePdf && pdfProfileId) {
+        await updateDerivableMetadataBindings(bookId, {
+          sourceFormat: 'pdf',
+          profileId: pdfProfileId,
+          metrics: {
+            ...contentMetrics,
+            pageCount: pdfPageCount,
+          },
+        })
+      }
+
+      if (includeEpub && epubProfileId) {
+        await updateDerivableMetadataBindings(bookId, {
+          sourceFormat: 'epub',
+          profileId: epubProfileId,
+          metrics: contentMetrics,
+        })
+      }
 
       return {
         path: publishedBookUrl,

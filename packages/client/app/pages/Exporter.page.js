@@ -573,6 +573,7 @@ const PreviewerPage = () => {
         input: {
           bookId,
           templateId: template,
+          profileId: activeTabKey === 'saved' ? selectedProfile : null,
           fileExtension: format,
           additionalExportOptions: {
             includeTOC: content.includes('includeTOC'),

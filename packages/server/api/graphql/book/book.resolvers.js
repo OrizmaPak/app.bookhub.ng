@@ -287,6 +287,7 @@ const exportBookHandler = async (_, { input }, ctx) => {
     bookId,
     previewer,
     templateId,
+    profileId,
     fileExtension,
     icmlNotes,
     additionalExportOptions = {},
@@ -303,6 +304,7 @@ const exportBookHandler = async (_, { input }, ctx) => {
         fileExtension,
         icmlNotes,
         additionalExportOptions,
+        profileId,
       )
 }
 

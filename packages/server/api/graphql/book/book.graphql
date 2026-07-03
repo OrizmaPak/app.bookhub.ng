@@ -182,6 +182,7 @@ input AdditionalExportOptionsInput {
 input ExportBookInput {
   bookId: ID!
   templateId: ID
+  profileId: ID
   previewer: String
   fileExtension: String
   icmlNotes: String
