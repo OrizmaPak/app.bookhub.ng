@@ -12,6 +12,15 @@ const DEFAULT_THOTH_EDITION = Number(process.env.THOTH_DEFAULT_EDITION) || 1
 const DEFAULT_TEMP_DOI_PREFIX =
   process.env.THOTH_TEMP_DOI_PREFIX || 'https://doi.org/10.5555'
 
+const CC_LICENSE_URLS = {
+  BY: 'https://creativecommons.org/licenses/by/4.0/',
+  'BY-NC': 'https://creativecommons.org/licenses/by-nc/4.0/',
+  'BY-NC-ND': 'https://creativecommons.org/licenses/by-nc-nd/4.0/',
+  'BY-NC-SA': 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+  'BY-ND': 'https://creativecommons.org/licenses/by-nd/4.0/',
+  'BY-SA': 'https://creativecommons.org/licenses/by-sa/4.0/',
+}
+
 const cleanObject = input => {
   return Object.fromEntries(
     Object.entries(input).filter(
@@ -144,7 +153,65 @@ const getLandingPage = book => {
   return null
 }
 
+const isUrl = value => /^https?:\/\/\S+$/i.test(String(value || '').trim())
+
+const getCreativeCommonsLicenseUrl = licenseTypes => {
+  const flags = [
+    licenseTypes?.NC ? 'NC' : null,
+    licenseTypes?.ND ? 'ND' : null,
+    licenseTypes?.SA ? 'SA' : null,
+  ].filter(Boolean)
+
+  const key = flags.length ? `BY-${flags.join('-')}` : 'BY'
+
+  return CC_LICENSE_URLS[key] || null
+}
+
+const normalizeLicenseForThoth = book => {
+  const podMetadata = book?.podMetadata || {}
+
+  if (podMetadata.copyrightLicense === 'SCL') {
+    return null
+  }
+
+  if (podMetadata.copyrightLicense === 'PD') {
+    return podMetadata.publicDomainType === 'cc0'
+      ? 'https://creativecommons.org/publicdomain/zero/1.0/'
+      : 'https://creativecommons.org/publicdomain/mark/1.0/'
+  }
+
+  if (podMetadata.copyrightLicense === 'CC') {
+    return getCreativeCommonsLicenseUrl(podMetadata.licenseTypes)
+  }
+
+  if (isUrl(book?.license)) {
+    return book.license.trim()
+  }
+
+  return null
+}
+
+const getUnmappedLicenseLabel = book => {
+  const podMetadata = book?.podMetadata || {}
+
+  if (
+    podMetadata.copyrightLicense &&
+    podMetadata.copyrightLicense !== 'SCL' &&
+    !normalizeLicenseForThoth(book)
+  ) {
+    return podMetadata.copyrightLicense
+  }
+
+  if (book?.license && !isUrl(book.license)) {
+    return book.license
+  }
+
+  return null
+}
+
 const buildWorkPayload = ({ book, title, subtitle }) => {
+  const license = normalizeLicenseForThoth(book)
+
   const rawPayload = {
     workType: DEFAULT_WORK_TYPE,
     workStatus: DEFAULT_WORK_STATUS,
@@ -153,7 +220,7 @@ const buildWorkPayload = ({ book, title, subtitle }) => {
     edition: Number(book.edition) || DEFAULT_THOTH_EDITION,
     publicationDate: normalizeDate(book.publicationDate),
     landingPage: getLandingPage(book),
-    license: book.license,
+    license,
     copyrightHolder: book.copyrightHolder,
     generalNote: subtitle,
     coverCaption: title,
@@ -218,9 +285,16 @@ const findWorkByDoi = async doi => {
 const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
   const payload = buildWorkPayload({ book, title, subtitle })
   const normalizedDoi = normalizeDoi(doi)
+  const unmappedLicense = getUnmappedLicenseLabel(book)
 
   if (normalizedDoi) {
     payload.doi = normalizedDoi
+  }
+
+  if (!dryRun && unmappedLicense) {
+    throw new Error(
+      `Unsupported license for Thoth sync: ${unmappedLicense}. Select a supported Creative Commons/Public Domain license or use a license URL.`,
+    )
   }
 
   const connection = await getConnectionStatus()
@@ -299,5 +373,6 @@ module.exports = {
   buildWorkPayload,
   getConnectionStatus,
   normalizeDoi,
+  normalizeLicenseForThoth,
   syncWork,
 }
