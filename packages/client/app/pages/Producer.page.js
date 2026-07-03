@@ -92,8 +92,16 @@ const calculateEditorMode = (lock, canModify, currentUser, tabId) => {
     : 'preview'
 }
 
+const buildContributorAuthorString = contributors =>
+  (contributors || [])
+    .map(item => item?.fullName?.trim())
+    .filter(Boolean)
+    .join(', ')
+
 const constructMetadataValues = (book, cover) => {
   const podMetadata = book?.podMetadata || {}
+  const contributors = podMetadata.contributors || []
+  const derivableMetadata = podMetadata.derivableMetadata || []
 
   return {
     title: book?.title,
@@ -104,6 +112,9 @@ const constructMetadataValues = (book, cover) => {
     copyrightHolder: book?.copyrightHolder || '',
     license: book?.license || '',
     ...podMetadata,
+    authors: podMetadata.authors || buildContributorAuthorString(contributors),
+    contributors,
+    derivableMetadata,
   }
 }
 
@@ -814,6 +825,8 @@ const ProducerPage = () => {
       publicationDate,
       copyrightHolder,
       license,
+      contributors,
+      derivableMetadata,
       ...rest
     } = data
 
@@ -841,6 +854,9 @@ const ProducerPage = () => {
         license,
       })
 
+    const resolvedAuthors =
+      rest.authors || buildContributorAuthorString(contributors)
+
     updateBookMetadata({
       variables: {
         input: {
@@ -857,6 +873,25 @@ const ProducerPage = () => {
         bookId,
         metadata: {
           ...rest,
+          authors: resolvedAuthors || null,
+          contributors: (contributors || []).map(item => ({
+            fullName: item?.fullName || '',
+            role: item?.role || '',
+            title: item?.title || '',
+            orcid: item?.orcid || '',
+            includeInThoth: item?.includeInThoth !== false,
+          })),
+          derivableMetadata: (derivableMetadata || []).map(item => ({
+            key: item.key,
+            sourceFormat: item.sourceFormat || null,
+            profileId: item.profileId || null,
+            value:
+              typeof item.value === 'number' && Number.isFinite(item.value)
+                ? item.value
+                : null,
+            updatedAt: item.updatedAt || null,
+            syncOnPublish: item.syncOnPublish !== false,
+          })),
           ncCopyrightYear: formatDateTimeValue(rest.ncCopyrightYear),
           saCopyrightYear: formatDateTimeValue(rest.saCopyrightYear),
         },

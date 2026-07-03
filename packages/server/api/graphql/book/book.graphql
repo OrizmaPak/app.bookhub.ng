@@ -79,7 +79,9 @@ input LicenseTypesInput {
 type PODMetadata {
   authors: String
   bottomPage: String
+  contributors: [ContributorMetadata!]
   copyrightLicense: String
+  derivableMetadata: [DerivableMetadataBinding!]
   isbns: [ISBN]
   licenseTypes: LicenseTypes
   ncCopyrightHolder: String
@@ -95,15 +97,51 @@ type ISBN {
   label: String!
 }
 
+type ContributorMetadata {
+  fullName: String
+  role: String
+  title: String
+  orcid: String
+  includeInThoth: Boolean
+}
+
+type DerivableMetadataBinding {
+  key: String!
+  sourceFormat: String
+  profileId: ID
+  value: Int
+  updatedAt: Date
+  syncOnPublish: Boolean
+}
+
 input ISBNInput {
   isbn: String!
   label: String!
 }
 
+input ContributorMetadataInput {
+  fullName: String
+  role: String
+  title: String
+  orcid: String
+  includeInThoth: Boolean
+}
+
+input DerivableMetadataBindingInput {
+  key: String!
+  sourceFormat: String
+  profileId: ID
+  value: Int
+  updatedAt: Date
+  syncOnPublish: Boolean
+}
+
 input PODMetadataInput {
   authors: String
   bottomPage: String
+  contributors: [ContributorMetadataInput!]
   copyrightLicense: String
+  derivableMetadata: [DerivableMetadataBindingInput!]
   isbns: [ISBNInput]
   licenseTypes: LicenseTypesInput
   ncCopyrightHolder: String

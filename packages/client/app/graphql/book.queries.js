@@ -21,7 +21,22 @@ const GET_ENTIRE_BOOK = gql`
       podMetadata {
         authors
         bottomPage
+        contributors {
+          fullName
+          role
+          title
+          orcid
+          includeInThoth
+        }
         copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
         isbns {
           label
           isbn
@@ -281,7 +296,22 @@ const UPDATE_BOOK_POD_METADATA = gql`
       podMetadata {
         authors
         bottomPage
+        contributors {
+          fullName
+          role
+          title
+          orcid
+          includeInThoth
+        }
         copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
         isbns {
           label
           isbn
@@ -391,7 +421,22 @@ const LOCK_BOOK_COMPONENT_POD = gql`
       podMetadata {
         authors
         bottomPage
+        contributors {
+          fullName
+          role
+          title
+          orcid
+          includeInThoth
+        }
         copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
         isbns {
           label
           isbn

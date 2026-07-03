@@ -114,6 +114,12 @@ const PayloadWrap = styled.pre`
 const readinessRows = values => [
   ['Title', values.title ? 'Ready' : 'Missing'],
   ['Authors', values.authors ? 'Ready' : 'Missing'],
+  [
+    'Contributor records',
+    values.contributors?.length
+      ? `${values.contributors.length} prepared`
+      : 'None added',
+  ],
   ['ISBN records', values.isbns?.length ? `${values.isbns.length} prepared` : 'None added'],
   ['Cover image', values.coverUrl ? 'Ready' : 'Missing'],
   ['Publication date', values.publicationDate ? 'Ready' : 'Missing'],
@@ -375,6 +381,7 @@ ThothMetadataPanel.propTypes = {
   values: PropTypes.shape({
     title: PropTypes.string,
     authors: PropTypes.string,
+    contributors: PropTypes.arrayOf(PropTypes.shape()),
     coverUrl: PropTypes.string,
     publicationDate: PropTypes.oneOfType([PropTypes.string, PropTypes.shape({})]),
     copyrightHolder: PropTypes.string,

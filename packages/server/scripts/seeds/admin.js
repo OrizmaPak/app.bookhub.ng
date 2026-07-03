@@ -16,13 +16,22 @@ const seedAdmin = async () => {
         '>>> Checking if admin user with provided email and username already exists...',
       )
 
-      const existingUsers = await User.query(trx)
-        .leftJoin('identities', 'users.id', 'identities.user_id')
-        .distinctOn('users.id')
-        .where({
-          'users.username': username,
-          'identities.email': email,
-        })
+      const usernameUser = await User.findOne({ username }, { trx })
+      const emailIdentity = await Identity.findOne({ email }, { trx })
+
+      const existingUsers = []
+
+      if (usernameUser) {
+        existingUsers.push(usernameUser)
+      }
+
+      if (emailIdentity && emailIdentity.userId !== usernameUser?.id) {
+        const emailUser = await User.findById(emailIdentity.userId, { trx })
+
+        if (emailUser) {
+          existingUsers.push(emailUser)
+        }
+      }
 
       if (existingUsers.length !== 0) {
         await Promise.all(
@@ -34,6 +43,16 @@ const seedAdmin = async () => {
                 '>>> An admin user with these credentials already exists in the system',
               )
               return false
+            }
+
+            if (user.username === username && user.email && user.email !== email) {
+              logger.warn(
+                `>>> Username "${username}" already exists with a different email (${user.email}). Reusing existing user and skipping email reassignment.`,
+              )
+            } else if (user.email === email && user.username !== username) {
+              logger.warn(
+                `>>> Email "${email}" already exists on username "${user.username}". Reusing existing user and skipping username creation.`,
+              )
             }
 
             logger.warn(

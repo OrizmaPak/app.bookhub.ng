@@ -87,13 +87,55 @@ const isbnItem = {
   required: ['isbn'],
 }
 
+const contributorMetadataItem = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    fullName: string,
+    role: string,
+    title: string,
+    orcid: string,
+    includeInThoth: {
+      type: ['boolean', 'null'],
+    },
+  },
+}
+
+const derivableMetadataItem = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    key: { type: 'string' },
+    sourceFormat: string,
+    profileId: id,
+    value: {
+      type: ['integer', 'null'],
+    },
+    updatedAt: dateNullable,
+    syncOnPublish: {
+      type: ['boolean', 'null'],
+    },
+  },
+  required: ['key'],
+}
+
 const podMetadata = {
   type: 'object',
   additionalProperties: false,
   properties: {
     authors: string,
     bottomPage: string,
+    contributors: {
+      type: 'array',
+      default: [],
+      items: contributorMetadataItem,
+    },
     copyrightLicense: string,
+    derivableMetadata: {
+      type: 'array',
+      default: [],
+      items: derivableMetadataItem,
+    },
     isbns: {
       type: 'array',
       default: [],
