@@ -37,6 +37,12 @@ export const THOTH_SYNC_WORK = gql`
         copyrightHolder
         generalNote
         coverCaption
+        pageCount
+        pageBreakdown
+        imageCount
+        tableCount
+        audioCount
+        videoCount
       }
     }
   }

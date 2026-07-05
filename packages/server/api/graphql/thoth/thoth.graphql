@@ -18,6 +18,12 @@ type ThothWorkPayloadPreview {
   copyrightHolder: String
   generalNote: String
   coverCaption: String
+  pageCount: Int
+  pageBreakdown: String
+  imageCount: Int
+  tableCount: Int
+  audioCount: Int
+  videoCount: Int
 }
 
 type ThothWorkSyncResult {

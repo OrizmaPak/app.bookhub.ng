@@ -33,6 +33,16 @@ const LICENSE_LABEL_URLS = {
     'https://creativecommons.org/publicdomain/mark/1.0/',
 }
 
+const THOTH_DERIVABLE_NUMERIC_FIELDS = new Set([
+  'pageCount',
+  'imageCount',
+  'tableCount',
+  'audioCount',
+  'videoCount',
+])
+
+const THOTH_DERIVABLE_STRING_FIELDS = new Set(['pageBreakdown'])
+
 const cleanObject = input => {
   return Object.fromEntries(
     Object.entries(input).filter(
@@ -230,8 +240,55 @@ const getUnmappedLicenseLabel = book => {
   return null
 }
 
+const normalizeDerivableInteger = value => {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  if (typeof value === 'boolean') {
+    return null
+  }
+
+  const normalizedValue = Number(value)
+
+  if (!Number.isInteger(normalizedValue) || normalizedValue < 0) {
+    return null
+  }
+
+  return normalizedValue
+}
+
+const buildAdditionalMetadataPayload = book => {
+  const derivableMetadata = book?.podMetadata?.derivableMetadata || []
+
+  return derivableMetadata.reduce((payload, item) => {
+    if (!item?.key) {
+      return payload
+    }
+
+    if (THOTH_DERIVABLE_NUMERIC_FIELDS.has(item.key)) {
+      const normalizedValue = normalizeDerivableInteger(item.value)
+
+      if (normalizedValue !== null) {
+        payload[item.key] = normalizedValue
+      }
+    }
+
+    if (THOTH_DERIVABLE_STRING_FIELDS.has(item.key)) {
+      const normalizedValue = String(item.value || '').trim()
+
+      if (normalizedValue) {
+        payload[item.key] = normalizedValue
+      }
+    }
+
+    return payload
+  }, {})
+}
+
 const buildWorkPayload = ({ book, title, subtitle }) => {
   const license = normalizeLicenseForThoth(book)
+  const additionalMetadata = buildAdditionalMetadataPayload(book)
 
   const rawPayload = {
     workType: DEFAULT_WORK_TYPE,
@@ -245,6 +302,7 @@ const buildWorkPayload = ({ book, title, subtitle }) => {
     copyrightHolder: book.copyrightHolder,
     generalNote: subtitle,
     coverCaption: title,
+    ...additionalMetadata,
   }
 
   return cleanObject(rawPayload)
@@ -390,6 +448,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
 }
 
 module.exports = {
+  buildAdditionalMetadataPayload,
   buildTemporaryDoi,
   buildWorkPayload,
   getConnectionStatus,

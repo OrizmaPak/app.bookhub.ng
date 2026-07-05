@@ -2,6 +2,7 @@
 import React, { useState } from 'react'
 import { useParams, useHistory } from 'react-router-dom'
 import styled from 'styled-components'
+import { message } from 'antd'
 import {
   useQuery,
   useMutation,
@@ -89,6 +90,21 @@ const sanitizeOptionData = data => {
   return d
 }
 
+const showThothSyncStatus = thothSync => {
+  if (!thothSync) return
+
+  if (thothSync.ok) {
+    message.success(thothSync.message || 'Synced to Thoth successfully.')
+    return
+  }
+
+  message.warning(
+    thothSync.error ||
+      thothSync.message ||
+      'Publish/export succeeded, but Thoth sync failed.',
+    6,
+  )
+}
 
 const normalizePreviewLink = link => {
   if (!link) return link
@@ -365,7 +381,9 @@ const PreviewerPage = () => {
   const [download] = useMutation(EXPORT_BOOK, {
     onCompleted: ({ exportBook }, { variables: { input } }) => {
       const { fileExtension } = input
-      const { path } = exportBook
+      const { path, thothSync } = exportBook
+
+      showThothSyncStatus(thothSync)
 
       if (fileExtension === 'epub') return window.location.replace(path)
       return window.open(path, '_blank', 'noreferrer')
@@ -374,7 +392,9 @@ const PreviewerPage = () => {
 
   const [publish, { loading: publishing }] = useMutation(PUBLISH_ONLINE, {
     onCompleted: ({ publishOnline }) => {
-      const { path } = publishOnline
+      const { path, thothSync } = publishOnline
+
+      showThothSyncStatus(thothSync)
 
       return window.open(path, '_blank', 'noreferrer')
     },

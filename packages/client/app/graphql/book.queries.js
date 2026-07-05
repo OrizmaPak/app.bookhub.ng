@@ -394,6 +394,14 @@ const EXPORT_BOOK = gql`
     exportBook(input: $input) {
       path
       validationResult
+      thothSync {
+        ok
+        operation
+        workId
+        message
+        error
+        syncedAt
+      }
     }
   }
 `
@@ -402,6 +410,14 @@ const PUBLISH_ONLINE = gql`
   mutation PublishOnline($input: ExportBookInput!, $profileId: ID!) {
     publishOnline(input: $input, profileId: $profileId) {
       path
+      thothSync {
+        ok
+        operation
+        workId
+        message
+        error
+        syncedAt
+      }
     }
   }
 `

@@ -275,6 +275,15 @@ type PagedPreviewerLink {
   link: String!
 }
 
+type ThothAutoSyncStatus {
+  ok: Boolean!
+  workId: ID
+  operation: String
+  message: String
+  error: String
+  syncedAt: Date
+}
+
 type BookResponse {
   result: [Book!]!
   totalCount: Int!
@@ -320,6 +329,7 @@ input PagedPreviewerOptions {
 type ExportResult {
   path: String!
   validationResult: String
+  thothSync: ThothAutoSyncStatus
 }
 
 type CreateBookResponse {

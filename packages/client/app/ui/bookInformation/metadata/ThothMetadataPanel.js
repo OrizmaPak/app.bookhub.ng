@@ -140,6 +140,7 @@ const mappings = [
   ['Authors/editors', 'Contributors + Contributions'],
   ['ISBN list', 'Publication identifiers'],
   ['Copyright / license', 'Rights metadata'],
+  ['Derivable metadata', 'Page, image, table, audio, and video counts'],
   ['Published URLs', 'Locations / landing page'],
 ]
 

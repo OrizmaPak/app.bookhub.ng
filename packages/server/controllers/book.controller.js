@@ -50,6 +50,7 @@ const bookComponentContentCreator = require('./helpers/bookComponentContentCreat
 const prepareTemplateFiles = require('./helpers/prepareWebTemplateFiles')
 
 const { flaxHandler } = require('./microServices.controller')
+const { buildTemporaryDoi, syncWork } = require('../services/thoth.service')
 
 const {
   Book,
@@ -204,6 +205,49 @@ const updateDerivableMetadataBindings = async (
   })
 
   return updatedBindings
+}
+
+const buildThothSyncStatus = (result, error = null) => ({
+  ok: Boolean(result?.ok && !error),
+  workId: result?.workId || null,
+  operation: result?.operation || 'sync',
+  message: error
+    ? 'Published/exported successfully, but Thoth sync failed.'
+    : result?.message || 'Thoth sync completed.',
+  error: error?.message || null,
+  syncedAt: new Date().toISOString(),
+})
+
+const autoSyncBookToThoth = async (bookId, context) => {
+  try {
+    const book = await getBook(bookId)
+    const [title, subtitle] = await Promise.all([
+      book.title ? Promise.resolve(book.title) : getBookTitle(book.id),
+      book.subtitle ? Promise.resolve(book.subtitle) : getBookSubtitle(book.id),
+    ])
+
+    if (!book.publicationDate) {
+      throw new Error(
+        'Publication date is required before automatic Thoth sync.',
+      )
+    }
+
+    const result = await syncWork({
+      book,
+      title,
+      subtitle,
+      doi: book.doi || buildTemporaryDoi(book.id),
+      dryRun: false,
+    })
+
+    return buildThothSyncStatus(result)
+  } catch (error) {
+    logger.warn(
+      `${BOOK_CONTROLLER} autoSyncBookToThoth (${context}): ${error.message}`,
+    )
+
+    return buildThothSyncStatus(null, error)
+  }
 }
 
 const defaultLevelOneItem = {
@@ -1177,7 +1221,7 @@ const exportBook = async (
   try {
     const { trx } = options
 
-    return useTransaction(
+    const result = await useTransaction(
       async tr => {
         const result = await exporter(
           bookId,
@@ -1218,6 +1262,20 @@ const exportBook = async (
       },
       { trx, passedTrxOnly: true },
     )
+
+    if (result && ['pdf', 'epub'].includes(fileExtension)) {
+      const thothSync = await autoSyncBookToThoth(
+        bookId,
+        `${fileExtension} export`,
+      )
+
+      return {
+        ...result,
+        thothSync,
+      }
+    }
+
+    return result
   } catch (e) {
     logger.error(`${BOOK_CONTROLLER} exportBook: ${e.message}`)
     throw e
@@ -2206,9 +2264,12 @@ const publishOnline = async (
         })
       }
 
+      const thothSync = await autoSyncBookToThoth(bookId, 'web publish')
+
       return {
         path: publishedBookUrl,
         validationResult: undefined,
+        thothSync,
       }
     }
 
