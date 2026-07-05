@@ -145,7 +145,7 @@ const InlineMeta = styled.div`
 `
 
 const DERIVABLE_METADATA_FIELDS = [
-  { key: 'pageCount', label: 'Page count', formats: ['pdf'] },
+  { key: 'pageCount', label: 'Page count', formats: ['web', 'pdf'] },
   { key: 'imageCount', label: 'Image count', formats: ['web', 'pdf', 'epub'] },
   { key: 'tableCount', label: 'Table count', formats: ['web', 'pdf', 'epub'] },
   { key: 'audioCount', label: 'Audio count', formats: ['web', 'pdf', 'epub'] },
@@ -176,6 +176,43 @@ const CONTRIBUTOR_ROLE_OPTIONS = [
   value,
 }))
 
+const CONTRIBUTION_TYPE_OPTIONS = [
+  ['AUTHOR', 'Author'],
+  ['EDITOR', 'Editor'],
+  ['TRANSLATOR', 'Translator'],
+  ['PHOTOGRAPHER', 'Photographer'],
+  ['ILLUSTRATOR', 'Illustrator'],
+  ['MUSIC_EDITOR', 'Music editor'],
+  ['FOREWORD_BY', 'Foreword by'],
+  ['INTRODUCTION_BY', 'Introduction by'],
+  ['AFTERWORD_BY', 'Afterword by'],
+  ['PREFACE_BY', 'Preface by'],
+  ['SOFTWARE_BY', 'Software by'],
+  ['RESEARCH_BY', 'Research by'],
+  ['CONTRIBUTIONS_BY', 'Contributions by'],
+  ['INDEXER', 'Indexer'],
+].map(([value, label]) => ({ label, value }))
+
+const LANGUAGE_OPTIONS = [
+  ['ENG', 'English'],
+  ['YOR', 'Yoruba'],
+  ['HAU', 'Hausa'],
+  ['IBO', 'Igbo'],
+  ['FRE', 'French'],
+  ['ARA', 'Arabic'],
+  ['POR', 'Portuguese'],
+  ['SPA', 'Spanish'],
+  ['GER', 'German'],
+  ['ITA', 'Italian'],
+  ['SWA', 'Swahili'],
+  ['WOL', 'Wolof'],
+  ['FUL', 'Fulah'],
+  ['ZUL', 'Zulu'],
+  ['XHO', 'Xhosa'],
+  ['AFR', 'Afrikaans'],
+  ['UND', 'Undetermined'],
+].map(([value, label]) => ({ label, value }))
+
 const buildContributorAuthorString = contributors =>
   (contributors || [])
     .map(item => item?.fullName?.trim())
@@ -183,12 +220,31 @@ const buildContributorAuthorString = contributors =>
     .join(', ')
 
 const normalizeContributors = contributors =>
-  (contributors || []).map(item => ({
-    fullName: item?.fullName || '',
+  (contributors || []).map((item, index) => ({
+    firstName: item?.firstName || '',
+    fullName:
+      item?.fullName ||
+      [item?.firstName, item?.lastName].filter(Boolean).join(' '),
+    lastName: item?.lastName || '',
     role: item?.role || '',
     title: item?.title || '',
     orcid: item?.orcid || '',
+    website: item?.website || '',
+    contributionType: item?.contributionType || 'AUTHOR',
+    contributionOrdinal: item?.contributionOrdinal || index + 1,
+    mainContribution: item?.mainContribution !== false && index === 0,
     includeInThoth: item?.includeInThoth !== false,
+  }))
+
+const normalizeLanguages = languages =>
+  (languages || []).map(item => ({
+    code: item?.code || '',
+    label:
+      item?.label ||
+      LANGUAGE_OPTIONS.find(option => option.value === item?.code)?.label ||
+      item?.code ||
+      '',
+    relation: item?.relation || 'ORIGINAL',
   }))
 
 const normalizeDerivableMetadata = metadata => {
@@ -286,6 +342,9 @@ const BookMetadataForm = ({
 
   transformedInitialValues.contributors = normalizeContributors(
     transformedInitialValues.contributors,
+  )
+  transformedInitialValues.languages = normalizeLanguages(
+    transformedInitialValues.languages,
   )
   transformedInitialValues.derivableMetadata = normalizeDerivableMetadata(
     transformedInitialValues.derivableMetadata,
@@ -410,6 +469,7 @@ const BookMetadataForm = ({
     setTimeout(() => {
       const currentValues = form.getFieldsValue(true)
       const contributors = normalizeContributors(currentValues.contributors)
+      const languages = normalizeLanguages(currentValues.languages)
       const derivableMetadata = normalizeDerivableMetadata(
         currentValues.derivableMetadata,
       )
@@ -435,6 +495,7 @@ const BookMetadataForm = ({
         ...currentValues,
         authors: resolvedAuthors,
         contributors,
+        languages,
         derivableMetadata,
         ...derived,
         coverUrl,
@@ -447,6 +508,7 @@ const BookMetadataForm = ({
             ...values,
             authors: resolvedAuthors,
             contributors,
+            languages,
             derivableMetadata,
             ...derived,
           })
@@ -581,6 +643,52 @@ const BookMetadataForm = ({
                     placeholder={t('sections.titlePage.authors.placeholder')}
                   />
                 </Form.Item>
+                <Form.Item shouldUpdate>
+                  {() => {
+                    const selectedLanguages =
+                      form.getFieldValue('languages') || []
+
+                    return (
+                      <Form.Item
+                        label="Used languages"
+                        labelCol={{ span: 24 }}
+                        wrapperCol={{ span: 24 }}
+                      >
+                        <Select
+                          disabled={!canChangeMetadata}
+                          filterOption={(input, option) =>
+                            `${option?.label || ''} ${option?.value || ''}`
+                              .toLowerCase()
+                              .includes(input.toLowerCase())
+                          }
+                          mode="multiple"
+                          onChange={codes => {
+                            const nextLanguages = codes.map(code => ({
+                              code,
+                              label:
+                                LANGUAGE_OPTIONS.find(
+                                  option => option.value === code,
+                                )?.label || code,
+                              relation:
+                                selectedLanguages.find(
+                                  item => item.code === code,
+                                )?.relation || 'ORIGINAL',
+                            }))
+
+                            form.setFieldsValue({
+                              languages: nextLanguages,
+                            })
+                            handleFormUpdate()
+                          }}
+                          options={LANGUAGE_OPTIONS}
+                          placeholder="Search and select languages"
+                          showSearch
+                          value={selectedLanguages.map(item => item.code)}
+                        />
+                      </Form.Item>
+                    )
+                  }}
+                </Form.Item>
               </FormSection>
 
               <FormSection>
@@ -611,6 +719,26 @@ const BookMetadataForm = ({
                             />
                           </Form.Item>
                           <Form.Item
+                            label="First name"
+                            labelCol={{ span: 24 }}
+                            name={[field.name, 'firstName']}
+                          >
+                            <Input
+                              disabled={!canChangeMetadata}
+                              placeholder="Jane"
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            label="Last name"
+                            labelCol={{ span: 24 }}
+                            name={[field.name, 'lastName']}
+                          >
+                            <Input
+                              disabled={!canChangeMetadata}
+                              placeholder="Doe"
+                            />
+                          </Form.Item>
+                          <Form.Item
                             label="Role"
                             labelCol={{ span: 24 }}
                             name={[field.name, 'role']}
@@ -629,6 +757,29 @@ const BookMetadataForm = ({
                             <Input
                               disabled={!canChangeMetadata}
                               placeholder="Lead editor"
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            label="Thoth contribution type"
+                            labelCol={{ span: 24 }}
+                            name={[field.name, 'contributionType']}
+                          >
+                            <Select
+                              disabled={!canChangeMetadata}
+                              options={CONTRIBUTION_TYPE_OPTIONS}
+                              placeholder="Select Thoth type"
+                            />
+                          </Form.Item>
+                          <Form.Item
+                            label="Contribution order"
+                            labelCol={{ span: 24 }}
+                            name={[field.name, 'contributionOrdinal']}
+                          >
+                            <Input
+                              disabled={!canChangeMetadata}
+                              min="1"
+                              placeholder="1"
+                              type="number"
                             />
                           </Form.Item>
                           <Form.Item
@@ -653,7 +804,25 @@ const BookMetadataForm = ({
                               placeholder="0000-0002-1825-0097"
                             />
                           </Form.Item>
+                          <Form.Item
+                            label="Website"
+                            labelCol={{ span: 24 }}
+                            name={[field.name, 'website']}
+                          >
+                            <Input
+                              disabled={!canChangeMetadata}
+                              placeholder="https://example.com"
+                            />
+                          </Form.Item>
                           <RowActions>
+                            <Form.Item
+                              label="Main contribution"
+                              labelCol={{ span: 24 }}
+                              name={[field.name, 'mainContribution']}
+                              valuePropName="checked"
+                            >
+                              <Checkbox disabled={!canChangeMetadata} />
+                            </Form.Item>
                             <Form.Item
                               label="Send to Thoth"
                               labelCol={{ span: 24 }}
@@ -677,10 +846,16 @@ const BookMetadataForm = ({
                         icon={<PlusOutlined />}
                         onClick={() =>
                           add({
+                            firstName: '',
                             fullName: '',
+                            lastName: '',
                             role: '',
                             title: '',
                             orcid: '',
+                            website: '',
+                            contributionType: 'AUTHOR',
+                            contributionOrdinal: fields.length + 1,
+                            mainContribution: fields.length === 0,
                             includeInThoth: true,
                           })
                         }
@@ -894,11 +1069,24 @@ BookMetadataForm.propTypes = {
     authors: PropTypes.string,
     contributors: PropTypes.arrayOf(
       PropTypes.shape({
+        firstName: PropTypes.string,
         fullName: PropTypes.string,
+        lastName: PropTypes.string,
         role: PropTypes.string,
         title: PropTypes.string,
         orcid: PropTypes.string,
+        website: PropTypes.string,
+        contributionType: PropTypes.string,
+        contributionOrdinal: PropTypes.number,
+        mainContribution: PropTypes.bool,
         includeInThoth: PropTypes.bool,
+      }),
+    ),
+    languages: PropTypes.arrayOf(
+      PropTypes.shape({
+        code: PropTypes.string,
+        label: PropTypes.string,
+        relation: PropTypes.string,
       }),
     ),
     derivableMetadata: PropTypes.arrayOf(

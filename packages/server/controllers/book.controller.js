@@ -141,6 +141,7 @@ const deriveBookContentMetrics = book => {
   const sources = $('source').toArray()
 
   return {
+    pageCount: chapters.length,
     imageCount: $('img').length,
     tableCount: $('table').length,
     audioCount:
@@ -170,7 +171,7 @@ const updateDerivableMetadataBindings = async (
   let changed = false
 
   const allowedFormatsByKey = {
-    pageCount: ['pdf'],
+    pageCount: ['web', 'pdf'],
     imageCount: ['web', 'pdf', 'epub'],
     tableCount: ['web', 'pdf', 'epub'],
     audioCount: ['web', 'pdf', 'epub'],
@@ -236,9 +237,39 @@ const buildThothSyncStatus = (result, error = null) => ({
   syncedAt: new Date().toISOString(),
 })
 
-const autoSyncBookToThoth = async (bookId, context) => {
+const shouldAutoSyncToThoth = (book, thothSyncMode) => {
+  if (thothSyncMode === 'skip') {
+    return false
+  }
+
+  if (thothSyncMode === 'sync') {
+    return true
+  }
+
+  const derivableMetadata = book?.podMetadata?.derivableMetadata || []
+
+  return (
+    derivableMetadata.length === 0 ||
+    derivableMetadata.some(item => item?.syncOnPublish !== false)
+  )
+}
+
+const autoSyncBookToThoth = async (
+  bookId,
+  context,
+  thothSyncMode = 'inherit',
+) => {
   try {
     const book = await getBook(bookId)
+
+    if (!shouldAutoSyncToThoth(book, thothSyncMode)) {
+      return buildThothSyncStatus({
+        ok: true,
+        operation: 'skipped',
+        message: 'Thoth sync skipped for this publish/export.',
+      })
+    }
+
     const [title, subtitle] = await Promise.all([
       book.title ? Promise.resolve(book.title) : getBookTitle(book.id),
       book.subtitle ? Promise.resolve(book.subtitle) : getBookSubtitle(book.id),
@@ -1285,6 +1316,7 @@ const exportBook = async (
       const thothSync = await autoSyncBookToThoth(
         bookId,
         `${fileExtension} export`,
+        additionalExportOptions?.thothSyncMode,
       )
 
       return {
@@ -2282,7 +2314,11 @@ const publishOnline = async (
         })
       }
 
-      const thothSync = await autoSyncBookToThoth(bookId, 'web publish')
+      const thothSync = await autoSyncBookToThoth(
+        bookId,
+        'web publish',
+        additionalExportOptions?.thothSyncMode,
+      )
 
       return {
         path: publishedBookUrl,

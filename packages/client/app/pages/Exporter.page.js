@@ -607,7 +607,7 @@ const PreviewerPage = () => {
     })
   }
 
-  const handlePublish = () => {
+  const handlePublish = (thothSyncMode = 'inherit') => {
     const {
       template,
       includePdf,
@@ -630,6 +630,7 @@ const PreviewerPage = () => {
             epubProfileId,
             customHeader,
             customFooter,
+            thothSyncMode,
           },
         },
         profileId: selectedProfile,

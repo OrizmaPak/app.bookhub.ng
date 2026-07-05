@@ -102,6 +102,7 @@ const constructMetadataValues = (book, cover) => {
   const podMetadata = book?.podMetadata || {}
   const contributors = podMetadata.contributors || []
   const derivableMetadata = podMetadata.derivableMetadata || []
+  const languages = podMetadata.languages || []
 
   return {
     title: book?.title,
@@ -115,6 +116,7 @@ const constructMetadataValues = (book, cover) => {
     authors: podMetadata.authors || buildContributorAuthorString(contributors),
     contributors,
     derivableMetadata,
+    languages,
   }
 }
 
@@ -875,11 +877,26 @@ const ProducerPage = () => {
           ...rest,
           authors: resolvedAuthors || null,
           contributors: (contributors || []).map(item => ({
+            firstName: item?.firstName || '',
             fullName: item?.fullName || '',
+            lastName: item?.lastName || '',
             role: item?.role || '',
             title: item?.title || '',
             orcid: item?.orcid || '',
+            website: item?.website || '',
+            contributionType: item?.contributionType || '',
+            contributionOrdinal:
+              Number.isInteger(Number(item?.contributionOrdinal)) &&
+              Number(item.contributionOrdinal) > 0
+                ? Number(item.contributionOrdinal)
+                : null,
+            mainContribution: item?.mainContribution === true,
             includeInThoth: item?.includeInThoth !== false,
+          })),
+          languages: (rest.languages || []).map(item => ({
+            code: item?.code || '',
+            label: item?.label || '',
+            relation: item?.relation || 'ORIGINAL',
           })),
           derivableMetadata: (derivableMetadata || []).map(item => ({
             key: item.key,

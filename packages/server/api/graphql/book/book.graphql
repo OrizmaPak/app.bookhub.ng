@@ -82,6 +82,7 @@ type PODMetadata {
   contributors: [ContributorMetadata!]
   copyrightLicense: String
   derivableMetadata: [DerivableMetadataBinding!]
+  languages: [LanguageMetadata!]
   isbns: [ISBN]
   licenseTypes: LicenseTypes
   ncCopyrightHolder: String
@@ -98,11 +99,23 @@ type ISBN {
 }
 
 type ContributorMetadata {
+  firstName: String
   fullName: String
+  lastName: String
   role: String
   title: String
   orcid: String
+  website: String
+  contributionType: String
+  contributionOrdinal: Int
+  mainContribution: Boolean
   includeInThoth: Boolean
+}
+
+type LanguageMetadata {
+  code: String!
+  label: String
+  relation: String
 }
 
 type DerivableMetadataBinding {
@@ -120,11 +133,23 @@ input ISBNInput {
 }
 
 input ContributorMetadataInput {
+  firstName: String
   fullName: String
+  lastName: String
   role: String
   title: String
   orcid: String
+  website: String
+  contributionType: String
+  contributionOrdinal: Int
+  mainContribution: Boolean
   includeInThoth: Boolean
+}
+
+input LanguageMetadataInput {
+  code: String!
+  label: String
+  relation: String
 }
 
 input DerivableMetadataBindingInput {
@@ -142,6 +167,7 @@ input PODMetadataInput {
   contributors: [ContributorMetadataInput!]
   copyrightLicense: String
   derivableMetadata: [DerivableMetadataBindingInput!]
+  languages: [LanguageMetadataInput!]
   isbns: [ISBNInput]
   licenseTypes: LicenseTypesInput
   ncCopyrightHolder: String
@@ -177,6 +203,7 @@ input AdditionalExportOptionsInput {
   epubProfileId: ID
   customHeader: String
   customFooter: String
+  thothSyncMode: String
 }
 
 input ExportBookInput {

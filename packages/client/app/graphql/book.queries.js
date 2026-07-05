@@ -22,10 +22,16 @@ const GET_ENTIRE_BOOK = gql`
         authors
         bottomPage
         contributors {
+          firstName
           fullName
+          lastName
           role
           title
           orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
           includeInThoth
         }
         copyrightLicense
@@ -36,6 +42,11 @@ const GET_ENTIRE_BOOK = gql`
           value
           updatedAt
           syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
         }
         isbns {
           label
@@ -297,10 +308,16 @@ const UPDATE_BOOK_POD_METADATA = gql`
         authors
         bottomPage
         contributors {
+          firstName
           fullName
+          lastName
           role
           title
           orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
           includeInThoth
         }
         copyrightLicense
@@ -311,6 +328,11 @@ const UPDATE_BOOK_POD_METADATA = gql`
           value
           updatedAt
           syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
         }
         isbns {
           label
@@ -438,10 +460,16 @@ const LOCK_BOOK_COMPONENT_POD = gql`
         authors
         bottomPage
         contributors {
+          firstName
           fullName
+          lastName
           role
           title
           orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
           includeInThoth
         }
         copyrightLicense
@@ -452,6 +480,11 @@ const LOCK_BOOK_COMPONENT_POD = gql`
           value
           updatedAt
           syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
         }
         isbns {
           label

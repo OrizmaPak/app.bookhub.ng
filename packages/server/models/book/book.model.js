@@ -91,14 +91,35 @@ const contributorMetadataItem = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    firstName: string,
     fullName: string,
+    lastName: string,
     role: string,
     title: string,
     orcid: string,
+    website: string,
+    contributionType: string,
+    contributionOrdinal: {
+      type: ['integer', 'null'],
+    },
+    mainContribution: {
+      type: ['boolean', 'null'],
+    },
     includeInThoth: {
       type: ['boolean', 'null'],
     },
   },
+}
+
+const languageMetadataItem = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    code: string,
+    label: string,
+    relation: string,
+  },
+  required: ['code'],
 }
 
 const derivableMetadataItem = {
@@ -135,6 +156,11 @@ const podMetadata = {
       type: 'array',
       default: [],
       items: derivableMetadataItem,
+    },
+    languages: {
+      type: 'array',
+      default: [],
+      items: languageMetadataItem,
     },
     isbns: {
       type: 'array',

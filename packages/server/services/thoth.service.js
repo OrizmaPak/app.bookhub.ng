@@ -43,6 +43,18 @@ const THOTH_DERIVABLE_NUMERIC_FIELDS = new Set([
 
 const THOTH_DERIVABLE_STRING_FIELDS = new Set(['pageBreakdown'])
 
+const CONTRIBUTION_TYPE_MAP = {
+  author: 'AUTHOR',
+  'co-author': 'AUTHOR',
+  editor: 'EDITOR',
+  'managing editor': 'EDITOR',
+  proofreader: 'EDITOR',
+  designer: 'CONTRIBUTIONS_BY',
+  illustrator: 'ILLUSTRATOR',
+  translator: 'TRANSLATOR',
+  reviewer: 'CONTRIBUTIONS_BY',
+}
+
 const cleanObject = input => {
   return Object.fromEntries(
     Object.entries(input).filter(
@@ -286,6 +298,82 @@ const buildAdditionalMetadataPayload = book => {
   }, {})
 }
 
+const normalizeOrcidForThoth = value => {
+  const rawValue = String(value || '').trim()
+
+  if (!rawValue) {
+    return null
+  }
+
+  if (/^https:\/\/orcid\.org\//i.test(rawValue)) {
+    return rawValue
+  }
+
+  if (/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/i.test(rawValue)) {
+    return `https://orcid.org/${rawValue}`
+  }
+
+  return null
+}
+
+const splitContributorName = contributor => {
+  const fullName = String(contributor?.fullName || '').trim()
+  const parts = fullName.split(/\s+/).filter(Boolean)
+
+  return {
+    firstName: contributor?.firstName || parts.slice(0, -1).join(' ') || null,
+    lastName: contributor?.lastName || parts.slice(-1)[0] || fullName,
+    fullName,
+  }
+}
+
+const normalizeContributionType = contributor => {
+  const explicitType = String(contributor?.contributionType || '').trim()
+
+  if (explicitType) {
+    return explicitType
+  }
+
+  const role = String(contributor?.role || '').trim().toLowerCase()
+
+  return CONTRIBUTION_TYPE_MAP[role] || 'CONTRIBUTIONS_BY'
+}
+
+const getThothRelationshipMetadata = book => {
+  const podMetadata = book?.podMetadata || {}
+  const contributors = (podMetadata.contributors || [])
+    .filter(item => item?.includeInThoth !== false)
+    .map((item, index) => {
+      const names = splitContributorName(item)
+
+      return cleanObject({
+        ...names,
+        orcid: normalizeOrcidForThoth(item?.orcid),
+        website: isUrl(item?.website) ? item.website.trim() : null,
+        contributionType: normalizeContributionType(item),
+        contributionOrdinal:
+          Number.isInteger(Number(item?.contributionOrdinal)) &&
+          Number(item.contributionOrdinal) > 0
+            ? Number(item.contributionOrdinal)
+            : index + 1,
+        mainContribution: item?.mainContribution === true || index === 0,
+      })
+    })
+    .filter(item => item.fullName && item.lastName)
+
+  const languages = (podMetadata.languages || [])
+    .map(item => ({
+      languageCode: String(item?.code || '').trim().toUpperCase(),
+      languageRelation: item?.relation || 'ORIGINAL',
+    }))
+    .filter(item => item.languageCode)
+
+  return {
+    contributors,
+    languages,
+  }
+}
+
 const buildWorkPayload = ({ book, title, subtitle }) => {
   const license = normalizeLicenseForThoth(book)
   const additionalMetadata = buildAdditionalMetadataPayload(book)
@@ -306,6 +394,175 @@ const buildWorkPayload = ({ book, title, subtitle }) => {
   }
 
   return cleanObject(rawPayload)
+}
+
+const getExistingWorkRelationships = async workId => {
+  const result = await executeThothGraphQL({
+    query: `
+      query ExistingWorkRelationships($workId: Uuid!) {
+        work(workId: $workId) {
+          contributions {
+            fullName
+            contributionType
+          }
+          languages {
+            languageCode
+            languageRelation
+          }
+        }
+      }
+    `,
+    variables: { workId },
+  })
+
+  return {
+    contributions: result.data?.work?.contributions || [],
+    languages: result.data?.work?.languages || [],
+  }
+}
+
+const findContributor = async contributor => {
+  const result = await executeThothGraphQL({
+    query: `
+      query FindContributor($filter: String) {
+        contributors(limit: 20, filter: $filter) {
+          contributorId
+          fullName
+          orcid
+        }
+      }
+    `,
+    variables: { filter: contributor.orcid || contributor.fullName },
+  })
+
+  const contributors = result.data?.contributors || []
+
+  return (
+    contributors.find(item => item.orcid && item.orcid === contributor.orcid) ||
+    contributors.find(item => item.fullName === contributor.fullName) ||
+    null
+  )
+}
+
+const createContributor = async contributor => {
+  const result = await executeThothGraphQL({
+    query: `
+      mutation CreateContributor($data: NewContributor!) {
+        createContributor(data: $data) {
+          contributorId
+        }
+      }
+    `,
+    variables: {
+      data: cleanObject({
+        firstName: contributor.firstName,
+        lastName: contributor.lastName,
+        fullName: contributor.fullName,
+        orcid: contributor.orcid,
+        website: contributor.website,
+      }),
+    },
+  })
+
+  return result.data?.createContributor?.contributorId
+}
+
+const findOrCreateContributor = async contributor => {
+  const existingContributor = await findContributor(contributor)
+
+  if (existingContributor?.contributorId) {
+    return existingContributor.contributorId
+  }
+
+  return createContributor(contributor)
+}
+
+const syncWorkRelationships = async ({ workId, book }) => {
+  const { contributors, languages } = getThothRelationshipMetadata(book)
+
+  if (!contributors.length && !languages.length) {
+    return {
+      contributors: 0,
+      languages: 0,
+    }
+  }
+
+  const existing = await getExistingWorkRelationships(workId)
+  let syncedLanguages = 0
+  let syncedContributors = 0
+
+  for (const language of languages) {
+    const exists = existing.languages.some(
+      item =>
+        item.languageCode === language.languageCode &&
+        item.languageRelation === language.languageRelation,
+    )
+
+    if (exists) {
+      continue
+    }
+
+    await executeThothGraphQL({
+      query: `
+        mutation CreateLanguage($data: NewLanguage!) {
+          createLanguage(data: $data) {
+            languageId
+          }
+        }
+      `,
+      variables: {
+        data: {
+          workId,
+          ...language,
+        },
+      },
+    })
+
+    syncedLanguages += 1
+  }
+
+  for (const contributor of contributors) {
+    const exists = existing.contributions.some(
+      item =>
+        item.fullName === contributor.fullName &&
+        item.contributionType === contributor.contributionType,
+    )
+
+    if (exists) {
+      continue
+    }
+
+    const contributorId = await findOrCreateContributor(contributor)
+
+    await executeThothGraphQL({
+      query: `
+        mutation CreateContribution($data: NewContribution!) {
+          createContribution(data: $data) {
+            contributionId
+          }
+        }
+      `,
+      variables: {
+        data: {
+          workId,
+          contributorId,
+          contributionType: contributor.contributionType,
+          mainContribution: Boolean(contributor.mainContribution),
+          firstName: contributor.firstName,
+          lastName: contributor.lastName,
+          fullName: contributor.fullName,
+          contributionOrdinal: contributor.contributionOrdinal,
+        },
+      },
+    })
+
+    syncedContributors += 1
+  }
+
+  return {
+    contributors: syncedContributors,
+    languages: syncedLanguages,
+  }
 }
 
 const getConnectionStatus = async () => {
@@ -413,6 +670,10 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
         },
       },
     })
+    const relationshipSync = await syncWorkRelationships({
+      workId: result.data?.updateWork?.workId || existingWorkId,
+      book,
+    })
 
     return {
       ok: true,
@@ -420,7 +681,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
       operation: 'update',
       connection,
       payload,
-      message: 'Existing Thoth work updated successfully.',
+      message: `Existing Thoth work updated successfully. Added ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
     }
   }
 
@@ -436,14 +697,21 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
       data: payload,
     },
   })
+  const createdWorkId = created.data?.createWork?.workId || null
+  const relationshipSync = createdWorkId
+    ? await syncWorkRelationships({
+        workId: createdWorkId,
+        book,
+      })
+    : { contributors: 0, languages: 0 }
 
   return {
     ok: true,
-    workId: created.data?.createWork?.workId || null,
+    workId: createdWorkId,
     operation: 'create',
     connection,
     payload,
-    message: 'New Thoth work created successfully.',
+    message: `New Thoth work created successfully. Added ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
   }
 }
 

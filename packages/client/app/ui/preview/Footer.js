@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react'
 import PropTypes from 'prop-types'
 import styled from 'styled-components'
-import { notification } from 'antd'
+import { notification, Radio } from 'antd'
 import {
   DownloadOutlined,
   CheckCircleTwoTone,
@@ -61,6 +61,7 @@ const Footer = props => {
   const [isPublishModalOpen, setPublishModalOpen] = useState(false)
   const [isUnpublishModalOpen, setUnpublishModalOpen] = useState(false)
   const [isUploading, setUploading] = useState(false)
+  const [thothSyncMode, setThothSyncMode] = useState('inherit')
   const [createInput, setCreateInput] = useState(null)
   const inputRef = useRef(null)
 
@@ -144,7 +145,7 @@ const Footer = props => {
   }
 
   const handlePublish = () => {
-    onPublish().finally(() => {
+    onPublish(thothSyncMode).finally(() => {
       setPublishModalOpen(false)
     })
   }
@@ -208,6 +209,20 @@ const Footer = props => {
             {t('tabs.publishingProfiles.publishModal.warning')}
           </p>
         )}
+        <div style={{ marginTop: 16 }}>
+          <p style={{ fontWeight: 600, marginBottom: 8 }}>
+            Thoth metadata sync
+          </p>
+          <Radio.Group
+            disabled={publishing}
+            onChange={event => setThothSyncMode(event.target.value)}
+            value={thothSyncMode}
+          >
+            <Radio value="inherit">Inherit sync settings</Radio>
+            <Radio value="sync">Yes, sync now</Radio>
+            <Radio value="skip">No, do not sync yet</Radio>
+          </Radio.Group>
+        </div>
       </>
     )
   }
