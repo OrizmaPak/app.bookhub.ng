@@ -169,12 +169,30 @@ const updateDerivableMetadataBindings = async (
   const existingBindings = podMetadata.derivableMetadata || []
   let changed = false
 
+  const allowedFormatsByKey = {
+    pageCount: ['pdf'],
+    imageCount: ['web', 'pdf', 'epub'],
+    tableCount: ['web', 'pdf', 'epub'],
+    audioCount: ['web', 'pdf', 'epub'],
+    videoCount: ['web', 'pdf', 'epub'],
+  }
+
   const updatedBindings = existingBindings.map(item => {
     if (
       item?.sourceFormat !== sourceFormat ||
       item?.profileId !== profileId ||
       item?.syncOnPublish === false
     ) {
+      return item
+    }
+
+    const allowedFormats = allowedFormatsByKey[item.key] || [
+      'web',
+      'pdf',
+      'epub',
+    ]
+
+    if (!allowedFormats.includes(sourceFormat)) {
       return item
     }
 

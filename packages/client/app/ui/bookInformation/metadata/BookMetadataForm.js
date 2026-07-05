@@ -145,11 +145,11 @@ const InlineMeta = styled.div`
 `
 
 const DERIVABLE_METADATA_FIELDS = [
-  { key: 'pageCount', label: 'Page count' },
-  { key: 'imageCount', label: 'Image count' },
-  { key: 'tableCount', label: 'Table count' },
-  { key: 'audioCount', label: 'Audio count' },
-  { key: 'videoCount', label: 'Video count' },
+  { key: 'pageCount', label: 'Page count', formats: ['pdf'] },
+  { key: 'imageCount', label: 'Image count', formats: ['web', 'pdf', 'epub'] },
+  { key: 'tableCount', label: 'Table count', formats: ['web', 'pdf', 'epub'] },
+  { key: 'audioCount', label: 'Audio count', formats: ['web', 'pdf', 'epub'] },
+  { key: 'videoCount', label: 'Video count', formats: ['web', 'pdf', 'epub'] },
 ]
 
 const DEFAULT_DERIVABLE_METADATA = DERIVABLE_METADATA_FIELDS.map(field => ({
@@ -194,10 +194,23 @@ const normalizeContributors = contributors =>
 const normalizeDerivableMetadata = metadata => {
   const byKey = Object.fromEntries((metadata || []).map(item => [item.key, item]))
 
-  return DEFAULT_DERIVABLE_METADATA.map(item => ({
-    ...item,
-    ...(byKey[item.key] || {}),
-  }))
+  return DEFAULT_DERIVABLE_METADATA.map(item => {
+    const field = DERIVABLE_METADATA_FIELDS.find(entry => entry.key === item.key)
+    const storedValue = byKey[item.key] || {}
+    const allowedFormats = field?.formats || ['web', 'pdf', 'epub']
+    const sourceFormat = allowedFormats.includes(storedValue.sourceFormat)
+      ? storedValue.sourceFormat
+      : item.sourceFormat
+
+    return {
+      ...item,
+      ...storedValue,
+      sourceFormat,
+      profileId: sourceFormat ? storedValue.profileId : item.profileId,
+      value: sourceFormat ? storedValue.value : item.value,
+      updatedAt: sourceFormat ? storedValue.updatedAt : item.updatedAt,
+    }
+  })
 }
 
 const isValidOrcid = value => {
@@ -364,6 +377,17 @@ const BookMetadataForm = ({
   const handlePreview = async file => {
     setPreviewImage(file.url || file.preview)
     setPreviewOpen(true)
+  }
+
+  const getAllowedFormatOptionsForMetric = key => {
+    const field = DERIVABLE_METADATA_FIELDS.find(item => item.key === key)
+    const allowedFormats = field?.formats || ['web', 'pdf', 'epub']
+
+    return [
+      { label: 'Web', value: 'web' },
+      { label: 'PDF', value: 'pdf' },
+      { label: 'EPUB', value: 'epub' },
+    ].filter(option => allowedFormats.includes(option.value))
   }
 
   const getProfileOptionsForFormat = sourceFormat => {
@@ -793,11 +817,9 @@ const BookMetadataForm = ({
                             >
                               <Select
                                 disabled={!canChangeMetadata}
-                                options={[
-                                  { label: 'Web', value: 'web' },
-                                  { label: 'PDF', value: 'pdf' },
-                                  { label: 'EPUB', value: 'epub' },
-                                ]}
+                                options={getAllowedFormatOptionsForMetric(
+                                  row?.key,
+                                )}
                                 placeholder="Select format"
                               />
                             </Form.Item>

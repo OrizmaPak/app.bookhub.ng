@@ -13,6 +13,9 @@ const DEFAULT_LIVE_ENDPOINT =
 const LEGACY_ENDPOINT =
   process.env.THOTH_GRAPHQL_ENDPOINT || 'https://api.thoth.pub/graphql'
 
+const THOTH_READ_TIMEOUT_MS =
+  Number(process.env.THOTH_READ_TIMEOUT_MS) || 15000
+
 const isBookHubSyncRecord = work => {
   const reference = `${work?.reference || ''}`.toLowerCase()
   const doi = `${work?.doi || ''}`.toLowerCase()
@@ -87,29 +90,42 @@ const getEnvironmentConfig = environment => {
 
 const executeThothReadQuery = async ({ environment, query, variables = {} }) => {
   const target = getEnvironmentConfig(environment)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), THOTH_READ_TIMEOUT_MS)
 
-  const response = await fetch(target.endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${target.token}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  })
+  try {
+    const response = await fetch(target.endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${target.token}`,
+      },
+      body: JSON.stringify({ query, variables }),
+      signal: controller.signal,
+    })
 
-  const payload = await response.json()
+    const payload = await response.json()
 
-  if (payload.errors?.length) {
-    throw new Error(payload.errors.map(error => error.message).join('; '))
-  }
+    if (payload.errors?.length) {
+      throw new Error(payload.errors.map(error => error.message).join('; '))
+    }
 
-  return {
-    environment: target.key,
-    label: target.label,
-    endpoint: target.endpoint,
-    publisherId: target.publisherId,
-    imprintId: target.imprintId,
-    data: payload.data,
+    return {
+      environment: target.key,
+      label: target.label,
+      endpoint: target.endpoint,
+      publisherId: target.publisherId,
+      imprintId: target.imprintId,
+      data: payload.data,
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error(`Thoth request timed out after ${THOTH_READ_TIMEOUT_MS}ms.`)
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -146,76 +162,70 @@ const normalizeWorkSummary = (work, publisherId, imprintId) => {
   }
 }
 
-const listAllWorksForFilter = async ({
+const listWorksForSyncedFilter = async ({
   environment,
   search = '',
   publisherOnly = false,
+  page = 1,
   pageSize = 50,
 }) => {
   const target = getEnvironmentConfig(environment)
+  const normalizedPage = Math.max(1, Number(page) || 1)
+  const normalizedPageSize = Math.max(1, Math.min(Number(pageSize) || 20, 100))
+  const scanLimit = Math.min(Math.max(normalizedPageSize * 5, 50), 100)
+  const scanOffset = (normalizedPage - 1) * scanLimit
 
-  const collectBatch = async (offset, items = []) => {
-    const result = await executeThothReadQuery({
-      environment,
-      query: `
-        query BackAdminThothWorks(
-          $limit: Int
-          $offset: Int
-          $filter: String
-          $publishers: [Uuid!]
+  const result = await executeThothReadQuery({
+    environment,
+    query: `
+      query BackAdminThothWorks(
+        $limit: Int
+        $offset: Int
+        $filter: String
+        $publishers: [Uuid!]
+      ) {
+        works(
+          limit: $limit
+          offset: $offset
+          filter: $filter
+          publishers: $publishers
+          order: { field: UPDATED_AT_WITH_RELATIONS, direction: DESC }
         ) {
-          works(
-            limit: $limit
-            offset: $offset
-            filter: $filter
-            publishers: $publishers
-            order: { field: UPDATED_AT_WITH_RELATIONS, direction: DESC }
-          ) {
-            workId
-            reference
-            doi
-            publicationDate
-            updatedAt
-            updatedAtWithRelations
-            landingPage
-            generalNote
-            coverCaption
-            titles {
-              fullTitle
-              title
-              subtitle
-              canonical
-            }
-            imprint {
-              imprintId
-              imprintName
-              publisher {
-                publisherId
-                publisherName
-              }
+          workId
+          reference
+          doi
+          publicationDate
+          updatedAt
+          updatedAtWithRelations
+          landingPage
+          generalNote
+          coverCaption
+          titles {
+            fullTitle
+            title
+            subtitle
+            canonical
+          }
+          imprint {
+            imprintId
+            imprintName
+            publisher {
+              publisherId
+              publisherName
             }
           }
         }
-      `,
-      variables: {
-        limit: pageSize,
-        offset,
-        filter: search || '',
-        publishers: publisherOnly ? [target.publisherId] : undefined,
-      },
-    })
+      }
+    `,
+    variables: {
+      limit: scanLimit,
+      offset: scanOffset,
+      filter: search || 'bookhub',
+      publishers: publisherOnly ? [target.publisherId] : undefined,
+    },
+  })
 
-    const batch = result.data?.works || []
-    const nextItems = [...items, ...batch]
-
-    if (batch.length !== pageSize) {
-      return nextItems
-    }
-
-    return collectBatch(offset + batch.length, nextItems)
-  }
-
-  return collectBatch(0)
+  return result.data?.works || []
 }
 
 const getThothStatus = async () => {
@@ -298,26 +308,26 @@ const getThothWorks = async ({
   const normalizedPageSize = Math.max(1, Math.min(Number(pageSize) || 20, 100))
 
   if (syncedOnly) {
-    const allItems = await listAllWorksForFilter({
+    const scannedItems = await listWorksForSyncedFilter({
       environment: target.key,
       search,
       publisherOnly,
-      pageSize: 100,
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
     })
 
-    const normalized = allItems
+    const normalized = scannedItems
       .map(item => normalizeWorkSummary(item, target.publisherId, target.imprintId))
       .filter(item => item.isBookHubSynced)
 
     const totalCount = normalized.length
-    const offset = (normalizedPage - 1) * normalizedPageSize
 
     return {
       environment: target.key,
       page: normalizedPage,
       pageSize: normalizedPageSize,
       totalCount,
-      items: normalized.slice(offset, offset + normalizedPageSize),
+      items: normalized.slice(0, normalizedPageSize),
     }
   }
 
