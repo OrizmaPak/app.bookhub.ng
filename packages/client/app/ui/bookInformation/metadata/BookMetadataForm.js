@@ -480,7 +480,7 @@ const mergeSharedContributors = (contributors, bookTeams) => {
       const candidate = sharedUserToContributor(
         member,
         team?.role,
-        normalized.length + additions.length,
+        normalized.length + candidates.length,
       )
 
       if (!candidate) {
