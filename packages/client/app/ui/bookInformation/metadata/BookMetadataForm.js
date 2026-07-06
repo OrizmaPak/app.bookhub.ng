@@ -355,6 +355,20 @@ const formatShareAccess = status => {
   return status || 'Shared user'
 }
 
+const CONTRIBUTOR_TEAM_ROLE_PRIORITY = {
+  owner: 0,
+  author: 1,
+  collaborator: 2,
+  invitations: 3,
+}
+
+const sortContributorTeams = teams =>
+  [...(teams || [])].sort(
+    (a, b) =>
+      (CONTRIBUTOR_TEAM_ROLE_PRIORITY[a?.role] ?? 99) -
+      (CONTRIBUTOR_TEAM_ROLE_PRIORITY[b?.role] ?? 99),
+  )
+
 const sharedUserToContributor = (member, teamRole, index) => {
   const user = member?.user || {}
   const fullName =
@@ -368,7 +382,8 @@ const sharedUserToContributor = (member, teamRole, index) => {
   }
 
   const { firstName, lastName } = splitDisplayName(fullName)
-  const isAuthorTeam = teamRole === 'author'
+  const isOwnerTeam = teamRole === 'owner'
+  const isAuthorTeam = isOwnerTeam || teamRole === 'author'
 
   return {
     sourceUserId: user.id || '',
@@ -377,7 +392,7 @@ const sharedUserToContributor = (member, teamRole, index) => {
     fullName,
     lastName: user.surname || lastName,
     role: isAuthorTeam ? 'Author' : 'Collaborator',
-    title: formatShareAccess(member?.status),
+    title: isOwnerTeam ? 'Book owner' : formatShareAccess(member?.status),
     orcid: '',
     website: '',
     contributionType: isAuthorTeam ? 'AUTHOR' : 'CONTRIBUTIONS_BY',
@@ -392,7 +407,7 @@ const mergeSharedContributors = (contributors, bookTeams) => {
   const existingKeys = new Set(normalized.map(contributorKey).filter(Boolean))
   const additions = []
 
-  ;(bookTeams || []).forEach(team => {
+  sortContributorTeams(bookTeams).forEach(team => {
     const members = Array.isArray(team?.members) ? team.members : []
 
     members.forEach(member => {
