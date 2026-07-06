@@ -101,7 +101,35 @@ const DELETE_BOOK_COMPONENT = gql`
       podMetadata {
         authors
         bottomPage
+        contributors {
+          sourceUserId
+          email
+          firstName
+          fullName
+          lastName
+          role
+          title
+          orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
+          includeInThoth
+        }
         copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
+        }
         isbns {
           label
           isbn
@@ -160,7 +188,35 @@ const UPDATE_BOOK_COMPONENTS_ORDER = gql`
       podMetadata {
         authors
         bottomPage
+        contributors {
+          sourceUserId
+          email
+          firstName
+          fullName
+          lastName
+          role
+          title
+          orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
+          includeInThoth
+        }
         copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
+        }
         isbns {
           label
           isbn

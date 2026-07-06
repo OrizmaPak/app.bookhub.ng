@@ -147,10 +147,52 @@ const GET_BOOK_COMPONENT_IDS = gql`
         }
       }
       podMetadata {
+        authors
+        bottomPage
+        contributors {
+          sourceUserId
+          email
+          firstName
+          fullName
+          lastName
+          role
+          title
+          orcid
+          website
+          contributionType
+          contributionOrdinal
+          mainContribution
+          includeInThoth
+        }
+        copyrightLicense
+        derivableMetadata {
+          key
+          sourceFormat
+          profileId
+          value
+          updatedAt
+          syncOnPublish
+        }
+        languages {
+          code
+          label
+          relation
+        }
         isbns {
           isbn
           label
         }
+        licenseTypes {
+          NC
+          SA
+          ND
+        }
+        ncCopyrightHolder
+        ncCopyrightYear
+        publicDomainType
+        saCopyrightHolder
+        saCopyrightYear
+        topPage
       }
       cover {
         coverUrl
