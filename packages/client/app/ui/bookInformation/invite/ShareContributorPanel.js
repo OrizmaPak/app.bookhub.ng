@@ -163,7 +163,7 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
 
   const mergedContributors = useMemo(
     () => mergeSharedContributors(storedContributors, bookTeams),
-    [JSON.stringify(storedContributors), JSON.stringify(bookTeams)],
+    [storedContributors, bookTeams],
   )
 
   const saveContributors = async contributors => {
@@ -173,14 +173,20 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
 
     const normalized = normalizeContributors(contributors)
 
-    await updatePODMetadata({
-      variables: {
-        bookId,
-        metadata: buildPodMetadataInput(podMetadata, normalized),
-      },
-    })
+    try {
+      setStatus('')
 
-    setStatus('Contributor metadata saved.')
+      await updatePODMetadata({
+        variables: {
+          bookId,
+          metadata: buildPodMetadataInput(podMetadata, normalized),
+        },
+      })
+
+      setStatus('Contributor metadata saved.')
+    } catch (error) {
+      setStatus(error.message || 'Unable to save contributor metadata.')
+    }
   }
 
   useEffect(() => {
@@ -198,7 +204,7 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
         setStatus(error.message || 'Unable to auto-save contributors.')
       })
     }
-  }, [JSON.stringify(mergedContributors), canChangeMetadata, bookLoaded])
+  }, [mergedContributors, canChangeMetadata, bookLoaded])
 
   const handleSyncFromShare = () => {
     const current = form.getFieldValue('contributors') || []

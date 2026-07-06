@@ -362,6 +362,11 @@ const sharedUserToContributor = (member, teamRole, index) => {
     [user.givenNames, user.surname].filter(Boolean).join(' ') ||
     user.email ||
     ''
+
+  if (!fullName && !user.id) {
+    return null
+  }
+
   const { firstName, lastName } = splitDisplayName(fullName)
   const isAuthorTeam = teamRole === 'author'
 
@@ -388,12 +393,19 @@ const mergeSharedContributors = (contributors, bookTeams) => {
   const additions = []
 
   ;(bookTeams || []).forEach(team => {
-    ;(team?.members || []).forEach(member => {
+    const members = Array.isArray(team?.members) ? team.members : []
+
+    members.forEach(member => {
       const candidate = sharedUserToContributor(
         member,
         team?.role,
         normalized.length + additions.length,
       )
+
+      if (!candidate) {
+        return
+      }
+
       const key = contributorKey(candidate)
 
       if (!candidate.fullName || existingKeys.has(key)) {
