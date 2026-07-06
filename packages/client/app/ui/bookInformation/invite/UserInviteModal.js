@@ -5,6 +5,7 @@ import { useQuery, useMutation } from '@apollo/client'
 import { useCurrentUser, th, grid } from '@coko/client'
 import UserInviteForm from './UserInviteForm'
 import UserList from './UserList'
+import ShareContributorPanel from './ShareContributorPanel'
 // import UserStatus from './UserStatus'
 import { Form, Box, Center } from '../../common'
 import {
@@ -219,6 +220,12 @@ const UserInviteModal = ({ bookId }) => {
             onRemoveAccess={handleRemoveTeamMember}
           />
         </ScrollWrapper>
+
+        <ShareContributorPanel
+          bookId={bookId}
+          bookTeams={bookTeamsAndInvites}
+          canChangeMetadata={canChangeAccess}
+        />
       </Center>
     </Box>
   )

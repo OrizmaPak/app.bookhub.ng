@@ -46,6 +46,7 @@ import {
   UPLOAD_BOOK_COVER,
   UPDATE_COVER_ALT,
   TRIGGER_WORKFLOW,
+  GET_INVITATIONS,
 } from '../graphql'
 
 import {
@@ -341,6 +342,15 @@ const ProducerPage = () => {
         },
       },
     },
+  )
+
+  const { data: invitationsData } = useQuery(GET_INVITATIONS, {
+    skip: !bookId,
+    variables: { bookId },
+  })
+
+  const bookShareEntries = (bookMembers || []).concat(
+    invitationsData?.getInvitations || [],
   )
 
   const editorRef = useRef(null)
@@ -1419,7 +1429,7 @@ const ProducerPage = () => {
       bookComponentContent={currentBookComponentContent}
       bookId={bookId}
       bookMembers={members}
-      bookTeams={bookMembers || []}
+      bookTeams={bookShareEntries}
       bookMetadataValues={bookMetadataValues}
       canEdit={canModify}
       canInteractWithComments={canInteractWithComments}

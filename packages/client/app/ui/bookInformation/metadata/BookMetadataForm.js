@@ -63,7 +63,10 @@ const MetadataGrid = styled.div`
   align-items: start;
   display: grid;
   gap: 20px;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.35fr);
+  grid-template-columns: ${({ $singleColumn }) =>
+    $singleColumn
+      ? '1fr'
+      : 'minmax(280px, 0.9fr) minmax(360px, 1.35fr)'};
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -73,6 +76,53 @@ const MetadataGrid = styled.div`
 const MetadataColumn = styled.div`
   display: grid;
   gap: 20px;
+`
+
+const MetadataTabNav = styled.nav`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-end: 20px;
+`
+
+const MetadataTabButton = styled.button`
+  background: ${props =>
+    props.$active ? th('colorPrimary')(props) : th('colorBackground')(props)};
+  border: 1px solid ${th('colorBorder')};
+  border-radius: 999px;
+  color: ${({ $active }) => ($active ? 'white' : 'inherit')};
+  cursor: pointer;
+  font-weight: 700;
+  padding: 8px 14px;
+
+  &:focus {
+    outline: 2px solid ${th('colorPrimary')};
+    outline-offset: 2px;
+  }
+`
+
+const ReviewGrid = styled.div`
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+`
+
+const ReviewItem = styled.div`
+  border: 1px solid ${th('colorBorder')};
+  border-radius: 8px;
+  min-width: 0;
+  padding: 12px;
+
+  strong {
+    display: block;
+    font-size: 12px;
+    margin-block-end: 6px;
+    text-transform: uppercase;
+  }
+
+  span {
+    overflow-wrap: anywhere;
+  }
 `
 
 const ThothSection = styled.section`
@@ -170,6 +220,14 @@ const InlineMeta = styled.div`
   font-size: 12px;
   margin-top: 4px;
 `
+
+const METADATA_TABS = [
+  ['book', 'Book info'],
+  ['rights', 'Rights'],
+  ['contributors', 'Contributors'],
+  ['derivable', 'Derivable metadata'],
+  ['review', 'Review & Thoth'],
+]
 
 const DERIVABLE_METADATA_FIELDS = [
   { key: 'pageCount', label: 'Page count', formats: ['web', 'pdf'] },
@@ -530,6 +588,7 @@ const BookMetadataForm = ({
 
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewImage, setPreviewImage] = useState('')
+  const [activeMetadataTab, setActiveMetadataTab] = useState('book')
 
   const handleCoverUpload = ({ file }) => {
     if (file.status === 'removed') {
@@ -683,6 +742,43 @@ const BookMetadataForm = ({
     })
   }, [bookTeams, canChangeMetadata])
 
+  const reviewContributors = normalizeContributors(previewValues.contributors)
+  const reviewLanguages = normalizeLanguages(previewValues.languages)
+  const reviewDerivableMetadata = normalizeDerivableMetadata(
+    previewValues.derivableMetadata,
+  )
+
+  const reviewItems = [
+    ['Title', previewValues.title],
+    ['Subtitle', previewValues.subtitle],
+    ['Authors', previewValues.authors],
+    ['Publication date', previewValues.publicationDate],
+    ['Copyright holder', previewValues.copyrightHolder],
+    ['License', previewValues.license],
+    [
+      'Languages',
+      reviewLanguages
+        .map(item => `${item.label || item.code} (${item.code})`)
+        .join(', '),
+    ],
+    [
+      'Contributors',
+      reviewContributors
+        .map(item =>
+          [item.fullName, item.role || item.contributionType]
+            .filter(Boolean)
+            .join(' - '),
+        )
+        .join('; '),
+    ],
+    [
+      'Derivable metadata',
+      reviewDerivableMetadata
+        .map(item => `${item.key}: ${item.value ?? 'pending'}`)
+        .join('; '),
+    ],
+  ]
+
   // if (!initialValues.title) {
   //   return <Spin spinning style={{ display: 'grid', placeContent: 'center' }} />
   // }
@@ -701,9 +797,32 @@ const BookMetadataForm = ({
             <p>{t('introduction')}</p>
           </MetadataHeader>
 
-          <MetadataGrid>
-            <MetadataColumn>
-              <FormSection>
+          <MetadataTabNav aria-label="Metadata sections">
+            {METADATA_TABS.map(([key, label]) => (
+              <MetadataTabButton
+                $active={activeMetadataTab === key}
+                key={key}
+                onClick={() => setActiveMetadataTab(key)}
+                type="button"
+              >
+                {label}
+              </MetadataTabButton>
+            ))}
+          </MetadataTabNav>
+
+          <MetadataGrid $singleColumn>
+            <MetadataColumn
+              style={{
+                display: ['book', 'contributors'].includes(activeMetadataTab)
+                  ? 'grid'
+                  : 'none',
+              }}
+            >
+              <FormSection
+                style={{
+                  display: activeMetadataTab === 'book' ? undefined : 'none',
+                }}
+              >
                 <h2>{t('sections.coverPage.heading')}</h2>
                 <Form.Item
                   label={t('sections.coverPage.upload.instructions')}
@@ -757,7 +876,11 @@ const BookMetadataForm = ({
                 ) : null}
               </FormSection>
 
-              <FormSection>
+              <FormSection
+                style={{
+                  display: activeMetadataTab === 'book' ? undefined : 'none',
+                }}
+              >
                 <h2>{t('sections.titlePage.heading')}</h2>
                 <Form.Item
                   label={t('sections.titlePage.title')}
@@ -843,7 +966,12 @@ const BookMetadataForm = ({
                 </Form.Item>
               </FormSection>
 
-              <FormSection>
+              <FormSection
+                style={{
+                  display:
+                    activeMetadataTab === 'contributors' ? undefined : 'none',
+                }}
+              >
                 <h2>Contributors</h2>
                 <SectionHint>
                   Capture structured contributor metadata here. The author string
@@ -1044,7 +1172,11 @@ const BookMetadataForm = ({
               </FormSection>
             </MetadataColumn>
 
-            <MetadataColumn>
+            <MetadataColumn
+              style={{
+                display: activeMetadataTab === 'rights' ? 'grid' : 'none',
+              }}
+            >
               <FormSection>
                 <h2>{t('sections.copyrightPage.heading')}</h2>
                 <Form.Item
@@ -1125,7 +1257,11 @@ const BookMetadataForm = ({
 
             </MetadataColumn>
 
-            <FullWidthSection>
+            <FullWidthSection
+              style={{
+                display: activeMetadataTab === 'derivable' ? 'block' : 'none',
+              }}
+            >
               <FormSection>
                 <h2>Derivable metadata</h2>
                 <SectionHint>
@@ -1224,7 +1360,26 @@ const BookMetadataForm = ({
               </FormSection>
             </FullWidthSection>
 
-            <ThothSection>
+            <ThothSection
+              style={{
+                display: activeMetadataTab === 'review' ? 'block' : 'none',
+              }}
+            >
+              <FormSection>
+                <h2>Metadata review</h2>
+                <SectionHint>
+                  Review the current metadata values before validating or
+                  syncing the Thoth payload.
+                </SectionHint>
+                <ReviewGrid>
+                  {reviewItems.map(([label, value]) => (
+                    <ReviewItem key={label}>
+                      <strong>{label}</strong>
+                      <span>{value || 'Not set'}</span>
+                    </ReviewItem>
+                  ))}
+                </ReviewGrid>
+              </FormSection>
               <ThothMetadataPanel values={previewValues} />
             </ThothSection>
           </MetadataGrid>
@@ -1326,6 +1481,15 @@ BookMetadataForm.propTypes = {
 
 BookMetadataForm.defaultProps = {
   bookTeams: [],
+}
+
+export {
+  buildContributorAuthorString,
+  normalizeContributors,
+  mergeSharedContributors,
+  CONTRIBUTOR_ROLE_OPTIONS,
+  CONTRIBUTION_TYPE_OPTIONS,
+  isValidOrcid,
 }
 
 export default BookMetadataForm
