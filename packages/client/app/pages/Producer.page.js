@@ -877,6 +877,8 @@ const ProducerPage = () => {
           ...rest,
           authors: resolvedAuthors || null,
           contributors: (contributors || []).map(item => ({
+            sourceUserId: item?.sourceUserId || '',
+            email: item?.email || '',
             firstName: item?.firstName || '',
             fullName: item?.fullName || '',
             lastName: item?.lastName || '',
@@ -1417,6 +1419,7 @@ const ProducerPage = () => {
       bookComponentContent={currentBookComponentContent}
       bookId={bookId}
       bookMembers={members}
+      bookTeams={bookMembers || []}
       bookMetadataValues={bookMetadataValues}
       canEdit={canModify}
       canInteractWithComments={canInteractWithComments}

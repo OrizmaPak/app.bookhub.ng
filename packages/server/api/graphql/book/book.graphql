@@ -99,6 +99,8 @@ type ISBN {
 }
 
 type ContributorMetadata {
+  sourceUserId: ID
+  email: String
   firstName: String
   fullName: String
   lastName: String
@@ -133,6 +135,8 @@ input ISBNInput {
 }
 
 input ContributorMetadataInput {
+  sourceUserId: ID
+  email: String
   firstName: String
   fullName: String
   lastName: String

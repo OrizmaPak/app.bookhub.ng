@@ -91,6 +91,8 @@ const contributorMetadataItem = {
   type: 'object',
   additionalProperties: false,
   properties: {
+    sourceUserId: string,
+    email: string,
     firstName: string,
     fullName: string,
     lastName: string,

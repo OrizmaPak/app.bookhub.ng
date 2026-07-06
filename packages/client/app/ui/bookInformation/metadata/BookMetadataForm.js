@@ -133,6 +133,33 @@ const RowActions = styled.div`
   justify-content: flex-end;
 `
 
+const ContributorRow = styled(RepeaterRow)`
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  width: 100%;
+
+  > * {
+    min-width: 0;
+  }
+`
+
+const ContributorActions = styled(RowActions)`
+  align-items: end;
+  grid-column: 1 / -1;
+  height: auto;
+  justify-content: space-between;
+
+  @media (max-width: 720px) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+`
+
+const SourceHint = styled.div`
+  color: ${th('colorTextPlaceholder')};
+  font-size: 12px;
+  grid-column: 1 / -1;
+`
+
 const SectionHint = styled.p`
   color: ${th('colorTextPlaceholder')};
   margin: -6px 0 16px;
@@ -171,6 +198,7 @@ const CONTRIBUTOR_ROLE_OPTIONS = [
   'Illustrator',
   'Translator',
   'Reviewer',
+  'Collaborator',
 ].map(value => ({
   label: value,
   value,
@@ -221,6 +249,8 @@ const buildContributorAuthorString = contributors =>
 
 const normalizeContributors = contributors =>
   (contributors || []).map((item, index) => ({
+    sourceUserId: item?.sourceUserId || '',
+    email: item?.email || '',
     firstName: item?.firstName || '',
     fullName:
       item?.fullName ||
@@ -235,6 +265,90 @@ const normalizeContributors = contributors =>
     mainContribution: item?.mainContribution !== false && index === 0,
     includeInThoth: item?.includeInThoth !== false,
   }))
+
+const contributorKey = contributor => {
+  if (contributor?.sourceUserId) return `user:${contributor.sourceUserId}`
+  if (contributor?.email) return `email:${String(contributor.email).toLowerCase()}`
+
+  return `name:${String(contributor?.fullName || '').trim().toLowerCase()}`
+}
+
+const splitDisplayName = displayName => {
+  const parts = String(displayName || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length <= 1) {
+    return { firstName: parts[0] || '', lastName: '' }
+  }
+
+  return {
+    firstName: parts.slice(0, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  }
+}
+
+const formatShareAccess = status => {
+  if (status === 'write') return 'Can edit'
+  if (status === 'comment') return 'Can comment'
+  if (status === 'read') return 'Can read'
+
+  return status || 'Shared user'
+}
+
+const sharedUserToContributor = (member, teamRole, index) => {
+  const user = member?.user || {}
+  const fullName =
+    user.displayName ||
+    [user.givenNames, user.surname].filter(Boolean).join(' ') ||
+    user.email ||
+    ''
+  const { firstName, lastName } = splitDisplayName(fullName)
+  const isAuthorTeam = teamRole === 'author'
+
+  return {
+    sourceUserId: user.id || '',
+    email: user.email || '',
+    firstName: user.givenNames || firstName,
+    fullName,
+    lastName: user.surname || lastName,
+    role: isAuthorTeam ? 'Author' : 'Collaborator',
+    title: formatShareAccess(member?.status),
+    orcid: '',
+    website: '',
+    contributionType: isAuthorTeam ? 'AUTHOR' : 'CONTRIBUTIONS_BY',
+    contributionOrdinal: index + 1,
+    mainContribution: isAuthorTeam && index === 0,
+    includeInThoth: true,
+  }
+}
+
+const mergeSharedContributors = (contributors, bookTeams) => {
+  const normalized = normalizeContributors(contributors)
+  const existingKeys = new Set(normalized.map(contributorKey).filter(Boolean))
+  const additions = []
+
+  ;(bookTeams || []).forEach(team => {
+    ;(team?.members || []).forEach(member => {
+      const candidate = sharedUserToContributor(
+        member,
+        team?.role,
+        normalized.length + additions.length,
+      )
+      const key = contributorKey(candidate)
+
+      if (!candidate.fullName || existingKeys.has(key)) {
+        return
+      }
+
+      existingKeys.add(key)
+      additions.push(candidate)
+    })
+  })
+
+  return normalized.concat(additions)
+}
 
 const normalizeLanguages = languages =>
   (languages || []).map(item => ({
@@ -314,6 +428,7 @@ const BookMetadataForm = ({
   canChangeMetadata,
   onUploadBookCover,
   className,
+  bookTeams,
 }) => {
   const { bookId } = useParams()
   const [form] = Form.useForm()
@@ -531,6 +646,43 @@ const BookMetadataForm = ({
     })
   }
 
+  useEffect(() => {
+    if (!bookTeams?.length || !canChangeMetadata) {
+      return
+    }
+
+    const currentContributors = form.getFieldValue('contributors') || []
+    const mergedContributors = mergeSharedContributors(
+      currentContributors,
+      bookTeams,
+    )
+
+    if (mergedContributors.length === currentContributors.length) {
+      return
+    }
+
+    const currentValues = form.getFieldsValue(true)
+    const resolvedAuthors =
+      currentValues.authors || buildContributorAuthorString(mergedContributors)
+
+    form.setFieldsValue({
+      contributors: mergedContributors,
+      authors: resolvedAuthors,
+    })
+
+    setPreviewValues(values => ({
+      ...values,
+      contributors: mergedContributors,
+      authors: resolvedAuthors,
+    }))
+
+    onSubmitBookMetadata({
+      ...currentValues,
+      contributors: mergedContributors,
+      authors: resolvedAuthors,
+    })
+  }, [bookTeams, canChangeMetadata])
+
   // if (!initialValues.title) {
   //   return <Spin spinning style={{ display: 'grid', placeContent: 'center' }} />
   // }
@@ -701,7 +853,7 @@ const BookMetadataForm = ({
                   {(fields, { add, remove }) => (
                     <FieldsetGrid>
                       {fields.map(field => (
-                        <RepeaterRow key={field.key}>
+                        <ContributorRow key={field.key}>
                           <Form.Item
                             label="Full name"
                             labelCol={{ span: 24 }}
@@ -814,7 +966,7 @@ const BookMetadataForm = ({
                               placeholder="https://example.com"
                             />
                           </Form.Item>
-                          <RowActions>
+                          <ContributorActions>
                             <Form.Item
                               label="Main contribution"
                               labelCol={{ span: 24 }}
@@ -838,8 +990,29 @@ const BookMetadataForm = ({
                             >
                               Remove
                             </Button>
-                          </RowActions>
-                        </RepeaterRow>
+                          </ContributorActions>
+                          <Form.Item hidden name={[field.name, 'sourceUserId']}>
+                            <Input />
+                          </Form.Item>
+                          <Form.Item hidden name={[field.name, 'email']}>
+                            <Input />
+                          </Form.Item>
+                          <Form.Item noStyle shouldUpdate>
+                            {() => {
+                              const contributor = form.getFieldValue([
+                                'contributors',
+                                field.name,
+                              ])
+
+                              return contributor?.email || contributor?.sourceUserId ? (
+                                <SourceHint>
+                                  Imported from share list
+                                  {contributor?.email ? ` - ${contributor.email}` : ''}
+                                </SourceHint>
+                              ) : null
+                            }}
+                          </Form.Item>
+                        </ContributorRow>
                       ))}
                       <Button
                         disabled={!canChangeMetadata}
@@ -856,6 +1029,8 @@ const BookMetadataForm = ({
                             contributionType: 'AUTHOR',
                             contributionOrdinal: fields.length + 1,
                             mainContribution: fields.length === 0,
+                            sourceUserId: '',
+                            email: '',
                             includeInThoth: true,
                           })
                         }
@@ -1069,6 +1244,8 @@ BookMetadataForm.propTypes = {
     authors: PropTypes.string,
     contributors: PropTypes.arrayOf(
       PropTypes.shape({
+        sourceUserId: PropTypes.string,
+        email: PropTypes.string,
         firstName: PropTypes.string,
         fullName: PropTypes.string,
         lastName: PropTypes.string,
@@ -1128,6 +1305,27 @@ BookMetadataForm.propTypes = {
   canChangeMetadata: PropTypes.bool.isRequired,
   onSubmitBookMetadata: PropTypes.func.isRequired,
   onUploadBookCover: PropTypes.func.isRequired,
+  bookTeams: PropTypes.arrayOf(
+    PropTypes.shape({
+      role: PropTypes.string,
+      members: PropTypes.arrayOf(
+        PropTypes.shape({
+          status: PropTypes.string,
+          user: PropTypes.shape({
+            id: PropTypes.string,
+            displayName: PropTypes.string,
+            givenNames: PropTypes.string,
+            surname: PropTypes.string,
+            email: PropTypes.string,
+          }),
+        }),
+      ),
+    }),
+  ),
+}
+
+BookMetadataForm.defaultProps = {
+  bookTeams: [],
 }
 
 export default BookMetadataForm

@@ -664,6 +664,7 @@ const LuluLayout = ({ customProps, ...rest }) => {
     languages,
     currentLanguage,
     onLanguageChange,
+    bookTeams,
   } = customProps
 
   const [lastSelectedChapter, setLastSelectedChapter] = useState(null)
@@ -845,6 +846,7 @@ const LuluLayout = ({ customProps, ...rest }) => {
         return (
           <StyledMetadataForm
             canChangeMetadata={canEdit}
+            bookTeams={bookTeams || []}
             initialValues={bookMetadataValues}
             onSubmitBookMetadata={onSubmitBookMetadata}
             onUploadBookCover={onUploadBookCover}

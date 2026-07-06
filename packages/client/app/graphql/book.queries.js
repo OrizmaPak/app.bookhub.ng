@@ -22,6 +22,8 @@ const GET_ENTIRE_BOOK = gql`
         authors
         bottomPage
         contributors {
+          sourceUserId
+          email
           firstName
           fullName
           lastName
@@ -308,6 +310,8 @@ const UPDATE_BOOK_POD_METADATA = gql`
         authors
         bottomPage
         contributors {
+          sourceUserId
+          email
           firstName
           fullName
           lastName
@@ -460,6 +464,8 @@ const LOCK_BOOK_COMPONENT_POD = gql`
         authors
         bottomPage
         contributors {
+          sourceUserId
+          email
           firstName
           fullName
           lastName

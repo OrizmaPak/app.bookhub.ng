@@ -104,6 +104,7 @@ const GET_BOOK_TEAMS = gql`
             givenNames
             displayName
             surname
+            email
           }
         }
       }

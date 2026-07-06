@@ -46,6 +46,7 @@ const EditorWrapper = ({
   addComments,
   user,
   bookMembers,
+  bookTeams,
   onMention,
   onUploadBookCover,
   viewMetadata,
@@ -94,6 +95,7 @@ const EditorWrapper = ({
     languages,
     currentLanguage,
     onLanguageChange,
+    bookTeams,
   })
 
   const [selectedWaxConfig, setSelectedWaxConfig] = useState(configWithAi)
@@ -202,6 +204,7 @@ const EditorWrapper = ({
       languages,
       currentLanguage,
       onLanguageChange,
+      bookTeams,
     })
   }, [
     title,
@@ -223,6 +226,7 @@ const EditorWrapper = ({
     pureScienceConfig,
     languages,
     currentLanguage,
+    bookTeams,
   ])
 
   const userObject = {
