@@ -480,6 +480,30 @@ const resolveDerivedMetadata = values => {
   return { license, copyrightHolder }
 }
 
+const formatReviewValue = value => {
+  if (value === null || value === undefined || value === '') {
+    return ''
+  }
+
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value)
+  }
+
+  if (typeof value === 'boolean') {
+    return value ? 'Yes' : 'No'
+  }
+
+  if (typeof value?.format === 'function') {
+    return value.format('YYYY-MM-DD')
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(formatReviewValue).filter(Boolean).join(', ')
+  }
+
+  return JSON.stringify(value)
+}
+
 const BookMetadataForm = ({
   initialValues,
   onSubmitBookMetadata,
@@ -1375,7 +1399,7 @@ const BookMetadataForm = ({
                   {reviewItems.map(([label, value]) => (
                     <ReviewItem key={label}>
                       <strong>{label}</strong>
-                      <span>{value || 'Not set'}</span>
+                      <span>{formatReviewValue(value) || 'Not set'}</span>
                     </ReviewItem>
                   ))}
                 </ReviewGrid>
