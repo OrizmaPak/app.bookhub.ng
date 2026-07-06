@@ -7,6 +7,7 @@ import { Form, Button, Checkbox, Input, Select } from '../../common'
 import { GET_ENTIRE_BOOK, UPDATE_BOOK_POD_METADATA } from '../../../graphql'
 import {
   buildContributorAuthorString,
+  contributorListsMatch,
   CONTRIBUTION_TYPE_OPTIONS,
   CONTRIBUTOR_ROLE_OPTIONS,
   isValidOrcid,
@@ -198,7 +199,7 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
 
     if (
       canChangeMetadata &&
-      mergedContributors.length > normalizeContributors(storedContributors).length
+      !contributorListsMatch(mergedContributors, storedContributors)
     ) {
       saveContributors(mergedContributors).catch(error => {
         setStatus(error.message || 'Unable to auto-save contributors.')

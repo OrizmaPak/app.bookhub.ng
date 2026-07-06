@@ -305,31 +305,98 @@ const buildContributorAuthorString = contributors =>
     .filter(Boolean)
     .join(', ')
 
-const normalizeContributors = contributors =>
-  (contributors || []).map((item, index) => ({
-    sourceUserId: item?.sourceUserId || '',
-    email: item?.email || '',
-    firstName: item?.firstName || '',
-    fullName:
-      item?.fullName ||
-      [item?.firstName, item?.lastName].filter(Boolean).join(' '),
-    lastName: item?.lastName || '',
-    role: item?.role || '',
-    title: item?.title || '',
-    orcid: item?.orcid || '',
-    website: item?.website || '',
-    contributionType: item?.contributionType || 'AUTHOR',
-    contributionOrdinal: item?.contributionOrdinal || index + 1,
-    mainContribution: item?.mainContribution !== false && index === 0,
-    includeInThoth: item?.includeInThoth !== false,
-  }))
+const contributorIdentityKey = contributor => {
+  if (contributor?.email) {
+    return `email:${String(contributor.email).toLowerCase()}`
+  }
 
-const contributorKey = contributor => {
-  if (contributor?.sourceUserId) return `user:${contributor.sourceUserId}`
-  if (contributor?.email) return `email:${String(contributor.email).toLowerCase()}`
+  if (contributor?.sourceUserId) {
+    return `user:${contributor.sourceUserId}`
+  }
 
-  return `name:${String(contributor?.fullName || '').trim().toLowerCase()}`
+  return ''
 }
+
+const mergeContributorValues = (existing, incoming) => {
+  const existingIsOwner = existing.title === 'Book owner'
+  const existingIsAuthor = existing.role === 'Author'
+
+  return {
+    ...existing,
+    sourceUserId: existing.sourceUserId || incoming.sourceUserId,
+    email: existing.email || incoming.email,
+    firstName: incoming.firstName || existing.firstName,
+    fullName: incoming.fullName || existing.fullName,
+    lastName: incoming.lastName || existing.lastName,
+    role:
+      existingIsOwner || existingIsAuthor
+        ? existing.role
+        : incoming.role || existing.role,
+    title: existingIsOwner ? existing.title : incoming.title || existing.title,
+    orcid: incoming.orcid || existing.orcid,
+    website: incoming.website || existing.website,
+    contributionType:
+      existingIsOwner || existing.contributionType === 'AUTHOR'
+        ? existing.contributionType
+        : incoming.contributionType || existing.contributionType,
+    contributionOrdinal:
+      existing.contributionOrdinal || incoming.contributionOrdinal,
+    mainContribution: existing.mainContribution || incoming.mainContribution,
+    includeInThoth:
+      existing.includeInThoth === false || incoming.includeInThoth === false
+        ? false
+        : existing.includeInThoth,
+  }
+}
+
+const dedupeContributors = contributors => {
+  const deduped = []
+  const seen = new Map()
+
+  contributors.forEach(contributor => {
+    const key = contributorIdentityKey(contributor)
+
+    if (!key) {
+      deduped.push(contributor)
+      return
+    }
+
+    if (seen.has(key)) {
+      const existingIndex = seen.get(key)
+      deduped[existingIndex] = mergeContributorValues(
+        deduped[existingIndex],
+        contributor,
+      )
+      return
+    }
+
+    seen.set(key, deduped.length)
+    deduped.push(contributor)
+  })
+
+  return deduped
+}
+
+const normalizeContributorItem = (item, index) => ({
+  sourceUserId: item?.sourceUserId || '',
+  email: item?.email || '',
+  firstName: item?.firstName || '',
+  fullName:
+    item?.fullName ||
+    [item?.firstName, item?.lastName].filter(Boolean).join(' '),
+  lastName: item?.lastName || '',
+  role: item?.role || '',
+  title: item?.title || '',
+  orcid: item?.orcid || '',
+  website: item?.website || '',
+  contributionType: item?.contributionType || 'AUTHOR',
+  contributionOrdinal: item?.contributionOrdinal || index + 1,
+  mainContribution: item?.mainContribution !== false && index === 0,
+  includeInThoth: item?.includeInThoth !== false,
+})
+
+const normalizeContributors = contributors =>
+  dedupeContributors((contributors || []).map(normalizeContributorItem))
 
 const splitDisplayName = displayName => {
   const parts = String(displayName || '')
@@ -404,8 +471,7 @@ const sharedUserToContributor = (member, teamRole, index) => {
 
 const mergeSharedContributors = (contributors, bookTeams) => {
   const normalized = normalizeContributors(contributors)
-  const existingKeys = new Set(normalized.map(contributorKey).filter(Boolean))
-  const additions = []
+  const candidates = []
 
   sortContributorTeams(bookTeams).forEach(team => {
     const members = Array.isArray(team?.members) ? team.members : []
@@ -421,19 +487,26 @@ const mergeSharedContributors = (contributors, bookTeams) => {
         return
       }
 
-      const key = contributorKey(candidate)
-
-      if (!candidate.fullName || existingKeys.has(key)) {
+      if (!candidate.fullName) {
         return
       }
 
-      existingKeys.add(key)
-      additions.push(candidate)
+      candidates.push(candidate)
     })
   })
 
-  return normalized.concat(additions)
+  return dedupeContributors(candidates.concat(normalized)).map(
+    (contributor, index) => ({
+      ...contributor,
+      contributionOrdinal: index + 1,
+      mainContribution: contributor.mainContribution === true || index === 0,
+    }),
+  )
 }
+
+const contributorListsMatch = (first, second) =>
+  JSON.stringify((first || []).map(normalizeContributorItem)) ===
+  JSON.stringify((second || []).map(normalizeContributorItem))
 
 const normalizeLanguages = languages =>
   (languages || []).map(item => ({
@@ -767,7 +840,7 @@ const BookMetadataForm = ({
       bookTeams,
     )
 
-    if (mergedContributors.length === currentContributors.length) {
+    if (contributorListsMatch(mergedContributors, currentContributors)) {
       return
     }
 
@@ -1536,6 +1609,7 @@ BookMetadataForm.defaultProps = {
 
 export {
   buildContributorAuthorString,
+  contributorListsMatch,
   normalizeContributors,
   mergeSharedContributors,
   CONTRIBUTOR_ROLE_OPTIONS,
