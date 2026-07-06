@@ -617,6 +617,23 @@ const addTeamMembersRule = rule()(async (parent, { teamId }, ctx, info) => {
   }
 })
 
+const transferBookOwnershipRule = rule()(async (_, { bookId }, ctx) => {
+  try {
+    const { userId } = ctx
+    if (!userId) return false
+
+    const isAuthenticatedUser = await isAuthenticated(userId, ctx)
+
+    if (!isAuthenticatedUser) {
+      return false
+    }
+
+    return isOwner(userId, bookId)
+  } catch (e) {
+    throw new Error(e.message)
+  }
+})
+
 const renameBookRule = rule()(async (parent, { id: bookId }, ctx, info) => {
   try {
     const { userId } = ctx
@@ -885,6 +902,7 @@ const permissions = {
     deleteInvitation: isAuthenticatedRule,
     updateInvitation: isAuthenticatedRule,
     triggerWorkflow: isAuthenticatedRule,
+    transferBookOwnership: transferBookOwnershipRule,
     backAdminSetUserActive: allow,
     backAdminSetAccess: allow,
     backAdminLogoutUser: allow,

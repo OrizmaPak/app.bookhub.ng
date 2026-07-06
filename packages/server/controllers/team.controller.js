@@ -12,6 +12,7 @@ const Book = require('../models/book/book.model')
 const { bookInvite } = require('./helpers/emailTemplates')
 
 const { Team } = require('../models').models
+const User = require('../models/user/user.model')
 
 const getObjectTeam = async (
   role,
@@ -215,6 +216,96 @@ const addTeamMembers = async (
   }
 }
 
+const removeMemberIfExists = async (teamId, userId, options = {}) => {
+  const { trx } = options
+  const existing = await TeamMember.findOne({ teamId, userId }, { trx })
+
+  if (!existing) return null
+
+  return Team.removeMember(teamId, userId, { trx })
+}
+
+const transferBookOwnership = async (
+  bookId,
+  currentOwnerUserId,
+  newOwnerUserId,
+  options = {},
+) => {
+  try {
+    const { trx } = options
+
+    return useTransaction(
+      async tr => {
+        if (!bookId) throw new Error('Book id is required')
+        if (!currentOwnerUserId) throw new Error('Current owner is required')
+        if (!newOwnerUserId) throw new Error('New owner is required')
+
+        if (currentOwnerUserId === newOwnerUserId) {
+          throw new Error('You already own this book')
+        }
+
+        const newOwner = await User.findById(newOwnerUserId, { trx: tr })
+
+        if (!newOwner || newOwner.isActive === false) {
+          throw new Error('The selected user does not exist or is not active')
+        }
+
+        const ownerTeam = await getObjectTeam('owner', bookId, false, {
+          trx: tr,
+        })
+
+        if (!ownerTeam) {
+          throw new Error('Owner team was not found for this book')
+        }
+
+        const currentOwnerMembership = await TeamMember.findOne(
+          {
+            teamId: ownerTeam.id,
+            userId: currentOwnerUserId,
+          },
+          { trx: tr },
+        )
+
+        if (!currentOwnerMembership) {
+          throw new Error('Only the current owner can transfer ownership')
+        }
+
+        const collaboratorTeam = await getObjectTeam(
+          'collaborator',
+          bookId,
+          false,
+          { trx: tr },
+        )
+
+        await Team.updateMembershipByTeamId(
+          ownerTeam.id,
+          [newOwnerUserId],
+          { trx: tr },
+        )
+
+        if (collaboratorTeam) {
+          await removeMemberIfExists(collaboratorTeam.id, currentOwnerUserId, {
+            trx: tr,
+          })
+          await removeMemberIfExists(collaboratorTeam.id, newOwnerUserId, {
+            trx: tr,
+          })
+        }
+
+        logger.info(
+          `>>> ownership of book ${bookId} transferred from ${currentOwnerUserId} to ${newOwnerUserId}`,
+        )
+
+        return Team.findById(ownerTeam.id, { trx: tr })
+      },
+      { trx },
+    )
+  } catch (e) {
+    logger.error(`>>> transferBookOwnership failed: ${e.message}`)
+    throw new Error(e.message)
+  }
+}
+
 module.exports = {
   createTeam,
   getObjectTeam,
@@ -222,4 +313,5 @@ module.exports = {
   updateTeamMemberStatus,
   updateTeamMemberStatuses,
   addTeamMembers,
+  transferBookOwnership,
 }

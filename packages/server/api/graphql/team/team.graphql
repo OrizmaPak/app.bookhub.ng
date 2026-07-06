@@ -15,6 +15,7 @@ extend type Mutation {
     bookId: ID!
     status: String
   ): Team!
+  transferBookOwnership(bookId: ID!, newOwnerUserId: ID!): Team!
 }
 
 extend type Subscription {

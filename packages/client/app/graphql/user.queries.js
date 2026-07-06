@@ -13,6 +13,7 @@ const SEARCH_USERS = gql`
     ) {
       id
       displayName
+      email
       surname
     }
   }

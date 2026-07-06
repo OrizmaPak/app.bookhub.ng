@@ -15,6 +15,7 @@ const {
   updateTeamMemberStatus,
   updateTeamMemberStatuses,
   addTeamMembers,
+  transferBookOwnership,
 } = require('../../../controllers/team.controller')
 
 const {
@@ -137,11 +138,53 @@ const addTeamMembersHandler = async (
   }
 }
 
+const transferBookOwnershipHandler = async (
+  _,
+  { bookId, newOwnerUserId },
+  ctx,
+) => {
+  try {
+    const oldOwnerUserId = ctx.userId
+
+    logger.info('team resolver: executing transferBookOwnership use case')
+
+    const updatedTeam = await transferBookOwnership(
+      bookId,
+      oldOwnerUserId,
+      newOwnerUserId,
+    )
+
+    await Promise.all(
+      [oldOwnerUserId, newOwnerUserId].map(async userId => {
+        const user = await getUser(userId)
+
+        return subscriptionManager.publish(USER_UPDATED, {
+          userUpdated: user,
+        })
+      }),
+    )
+
+    subscriptionManager.publish(TEAM_MEMBERS_UPDATED, {
+      teamMembersUpdated: updatedTeam.id,
+    })
+
+    subscriptionManager.publish(TEAM_UPDATED, {
+      teamUpdated: updatedTeam.id,
+    })
+
+    logger.info(`Ownership transfer msg broadcasted`)
+    return updatedTeam
+  } catch (e) {
+    throw new Error(e.message)
+  }
+}
+
 module.exports = {
   Mutation: {
     updateKetidaTeamMembers: updateKetidaTeamMembersHandler,
     updateTeamMemberStatus: updateTeamMemberStatusHandler,
     addTeamMembers: addTeamMembersHandler,
+    transferBookOwnership: transferBookOwnershipHandler,
   },
   Subscription: {
     teamMembersUpdated: {

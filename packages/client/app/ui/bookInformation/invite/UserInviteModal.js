@@ -6,6 +6,7 @@ import { useCurrentUser, th, grid } from '@coko/client'
 import UserInviteForm from './UserInviteForm'
 import UserList from './UserList'
 import ShareContributorPanel from './ShareContributorPanel'
+import TransferOwnershipPanel from './TransferOwnershipPanel'
 // import UserStatus from './UserStatus'
 import { Form, Box, Center } from '../../common'
 import {
@@ -199,6 +200,7 @@ const UserInviteModal = ({ bookId }) => {
   }
 
   const canChangeAccess = isAdmin(currentUser) || isOwner(bookId, currentUser)
+  const isCurrentOwner = isOwner(bookId, currentUser)
 
   return (
     <Box>
@@ -225,6 +227,12 @@ const UserInviteModal = ({ bookId }) => {
           bookId={bookId}
           bookTeams={bookTeamsAndInvites}
           canChangeMetadata={canChangeAccess}
+        />
+
+        <TransferOwnershipPanel
+          bookId={bookId}
+          currentUser={currentUser}
+          isCurrentOwner={isCurrentOwner}
         />
       </Center>
     </Box>

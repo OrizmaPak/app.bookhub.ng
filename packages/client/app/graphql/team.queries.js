@@ -113,6 +113,27 @@ const GET_BOOK_TEAMS = gql`
   }
 `
 
+const TRANSFER_BOOK_OWNERSHIP = gql`
+  mutation TransferBookOwnership($bookId: ID!, $newOwnerUserId: ID!) {
+    transferBookOwnership(bookId: $bookId, newOwnerUserId: $newOwnerUserId) {
+      id
+      role
+      displayName
+      members {
+        id
+        status
+        user {
+          id
+          givenNames
+          displayName
+          surname
+          email
+        }
+      }
+    }
+  }
+`
+
 // const TEAM_MEMBERS_UPDATED_SUBSCRIPTION = gql`
 //   subscription TeamMembersUpdated {
 //     teamMembersUpdated {
@@ -126,5 +147,6 @@ export {
   ADD_TEAM_MEMBERS,
   UPDATE_TEAM_MEMBER_STATUS,
   GET_BOOK_TEAMS,
+  TRANSFER_BOOK_OWNERSHIP,
   // TEAM_MEMBERS_UPDATED_SUBSCRIPTION,
 }
