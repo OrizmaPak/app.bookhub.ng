@@ -27,6 +27,29 @@ const TCWrapper = styled.section`
   padding-inline-end: ${grid(2)};
 `
 
+const SignupPage = styled(Page)`
+  box-sizing: border-box;
+  height: auto;
+  min-height: 100dvh;
+  overflow-y: auto;
+  padding: ${grid(4)};
+  -webkit-overflow-scrolling: touch;
+
+  @media (max-width: 600px) {
+    align-items: flex-start;
+    padding: ${grid(2)};
+  }
+`
+
+const SignupWrapper = styled(AuthenticationWrapper)`
+  box-sizing: border-box;
+
+  @media (max-width: 600px) {
+    border-radius: 0;
+    padding: ${grid(4)} ${grid(2)};
+  }
+`
+
 const Signup = props => {
   const {
     className,
@@ -90,9 +113,9 @@ const Signup = props => {
   }, [errorMessage])
 
   return (
-    <Page maxWidth={600}>
+    <SignupPage maxWidth={600}>
       <Suspense fallback={<div>Loading...</div>}>
-        <AuthenticationWrapper className={className}>
+        <SignupWrapper className={className}>
           <AuthenticationHeader>{t('title')}</AuthenticationHeader>
 
           {hasSuccess && (
@@ -292,9 +315,9 @@ const Signup = props => {
               </ModalContext.Provider>
             </AuthenticationForm>
           )}
-        </AuthenticationWrapper>
+        </SignupWrapper>
       </Suspense>
-    </Page>
+    </SignupPage>
   )
 }
 

@@ -17,9 +17,16 @@ const SubmitButton = styled(Button)`
 
 const Footer = styled.div`
   display: flex;
+  flex-wrap: wrap;
+  gap: ${grid(2)};
   justify-content: ${props =>
     props.showForgotPassword ? 'space-between' : 'flex-end'};
   margin-top: ${grid(4)};
+
+  @media (max-width: 480px) {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 `
 
 const ForgotPassword = styled.div`
