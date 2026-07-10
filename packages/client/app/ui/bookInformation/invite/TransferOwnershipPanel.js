@@ -53,6 +53,7 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
   const history = useHistory()
   const [options, setOptions] = useState([])
   const [fetching, setFetching] = useState(false)
+  const [searchValue, setSearchValue] = useState('')
   const [selectedUser, setSelectedUser] = useState(null)
   const [confirmed, setConfirmed] = useState(false)
   const [status, setStatus] = useState(null)
@@ -78,6 +79,7 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
 
         if (!trimmedSearch) {
           setOptions([])
+          setFetching(false)
           return
         }
 
@@ -119,6 +121,25 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
 
   if (!isCurrentOwner) return null
 
+  const handleSearch = value => {
+    const trimmedValue = value.trim()
+
+    setSearchValue(value)
+    setSelectedUser(null)
+    setConfirmed(false)
+    setStatus(null)
+
+    if (!trimmedValue) {
+      fetchRef.current += 1
+      debouncedSearch.cancel()
+      setFetching(false)
+      setOptions([])
+      return
+    }
+
+    debouncedSearch(value)
+  }
+
   const handleTransfer = async () => {
     if (!selectedUser?.value || !confirmed) return
 
@@ -152,19 +173,40 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
           changes who controls the book.
         </p>
         <StyledSelect
+          allowClear
           disabled={transferring}
           filterOption={false}
-          notFoundContent={fetching ? <Spin spinning /> : null}
-          onChange={(_, option) => {
-            setSelectedUser(option)
+          getPopupContainer={triggerNode => triggerNode.parentElement}
+          labelInValue
+          notFoundContent={
+            fetching ? (
+              <Spin spinning />
+            ) : searchValue.trim() ? (
+              'No matching registered user found'
+            ) : (
+              'Type a name or email to search'
+            )
+          }
+          onChange={option => {
+            setSelectedUser(option || null)
+            setSearchValue('')
             setConfirmed(false)
             setStatus(null)
           }}
-          onSearch={debouncedSearch}
+          onClear={() => {
+            setSearchValue('')
+            setOptions([])
+            setSelectedUser(null)
+            setConfirmed(false)
+            setStatus(null)
+          }}
+          onSearch={handleSearch}
           options={options}
           placeholder="Search existing users by name or email"
+          searchValue={searchValue}
           showSearch
-          value={selectedUser?.value}
+          value={selectedUser}
+          wrapOptionText
         />
         {selectedUser ? (
           <Warning>
