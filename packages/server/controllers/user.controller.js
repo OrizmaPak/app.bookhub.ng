@@ -228,13 +228,14 @@ const searchForUsers = async (
 
         if (exactMatch) {
           return User.query(tr)
+            .select('users.*', 'identities.email as email')
             .leftJoin('identities', 'identities.user_id', 'users.id')
             .where({
               'users.is_active': true,
               'identities.is_verified': true,
               'identities.is_default': true,
-              'identities.email': searchLow,
             })
+            .whereRaw('lower(identities.email) = ?', [searchLow])
             .whereNotIn('users.id', exclude)
             .skipUndefined()
         }

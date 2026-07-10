@@ -106,14 +106,19 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
           .then(({ data }) => {
             if (fetchId !== fetchRef.current) return
 
-            const nextOptions = (data?.searchForUsers || []).map(user => ({
-              label: user.email
-                ? `${user.displayName || user.email} (${user.email})`
-                : user.displayName,
-              value: user.id,
-              email: user.email,
-              displayName: user.displayName,
-            }))
+            const searchedEmail = trimmedSearch.toLowerCase()
+
+            const nextOptions = (data?.searchForUsers || []).map(user => {
+              const email = user.email || searchedEmail
+              const name = user.displayName || email
+
+              return {
+                label: `${name} (${email})`,
+                value: user.id,
+                email,
+                displayName: user.displayName,
+              }
+            })
 
             setOptions(nextOptions)
           })
