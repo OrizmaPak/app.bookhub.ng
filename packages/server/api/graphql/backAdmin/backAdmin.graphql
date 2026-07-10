@@ -48,6 +48,24 @@ type BackAdminBookTransfer {
   created: String!
 }
 
+type BackAdminBookTransferTrailUser {
+  pathKey: String!
+  userId: ID!
+  email: String
+  name: String
+}
+
+type BackAdminBookTransferTrail {
+  bookId: ID!
+  bookTitle: String
+  currentOwnerUserId: ID
+  currentOwnerEmail: String
+  currentOwnerName: String
+  ownerPath: [BackAdminBookTransferTrailUser!]!
+  revokeTargets: [BackAdminBookTransferTrailUser!]!
+  entries: [BackAdminBookTransfer!]!
+}
+
 type BackAdminAccess {
   signInEnabled: Boolean!
   signUpEnabled: Boolean!
@@ -253,6 +271,10 @@ extend type Query {
     status: String
     search: String
   ): [BackAdminBookTransfer!]!
+  backAdminBookTransferTrail(
+    sessionToken: String!
+    bookId: ID!
+  ): BackAdminBookTransferTrail!
   backAdminAccess(sessionToken: String!): BackAdminAccess!
   backAdminEmailQueueStats(sessionToken: String!): BackAdminEmailQueueStats!
   backAdminInstanceHealth(sessionToken: String!): [BackAdminInstanceHealth!]!
@@ -309,6 +331,7 @@ extend type Mutation {
   backAdminRevokeBookTransfer(
     sessionToken: String!
     transferId: ID!
+    targetUserId: ID
     reason: String
   ): BackAdminBookTransfer!
 }

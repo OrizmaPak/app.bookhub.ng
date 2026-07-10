@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
+import { HistoryOutlined } from '@ant-design/icons'
 import styled from 'styled-components'
+import PropTypes from 'prop-types'
 import { useHistory, useLocation } from 'react-router-dom'
 import {
   Alert,
@@ -24,6 +26,7 @@ import {
 
 import {
   BACK_ADMIN_ACCESS,
+  BACK_ADMIN_BOOK_TRANSFER_TRAIL,
   BACK_ADMIN_BOOK_TRANSFERS,
   BACK_ADMIN_BOOK_USER_STATS,
   BACK_ADMIN_EMAIL_QUEUE_STATS,
@@ -79,34 +82,50 @@ const StatSvg = ({ points }) => {
     .join(' ')
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="180" role="img">
-      <rect x="0" y="0" width={width} height={height} fill="transparent" />
+    <svg height="180" role="img" viewBox={`0 0 ${width} ${height}`} width="100%">
+      <rect fill="transparent" height={height} width={width} x="0" y="0" />
       <polyline
         fill="none"
-        stroke="#1677ff"
-        strokeWidth="2"
         points={polyline}
-        strokeLinejoin="round"
+        stroke="#1677ff"
         strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
       />
     </svg>
   )
+}
+
+StatSvg.propTypes = {
+  points: PropTypes.arrayOf(
+    PropTypes.shape({
+      load1: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+    }),
+  ),
+}
+
+StatSvg.defaultProps = {
+  points: [],
 }
 
 const BackAdminPage = () => {
   const history = useHistory()
   const location = useLocation()
   const allowedPanels = ['home', 'manage', 'health', 'thoth', 'books']
+
   const getPanelFromSearch = search => {
     const panelValue = new URLSearchParams(search).get('panel')
     return allowedPanels.includes(panelValue) ? panelValue : 'home'
   }
+
   const [emailInput, setEmailInput] = useState('')
   const [otpInput, setOtpInput] = useState('')
   const [otpRequestedFor, setOtpRequestedFor] = useState('')
+
   const [sessionToken, setSessionToken] = useState(
     () => sessionStorage.getItem('backAdminSessionToken') || '',
   )
+
   const [panel, setPanel] = useState(() => getPanelFromSearch(location.search))
   const [selectedUserIds, setSelectedUserIds] = useState([])
   const [emailAudience, setEmailAudience] = useState('selected')
@@ -115,14 +134,20 @@ const BackAdminPage = () => {
   const [selectedHealthService, setSelectedHealthService] = useState('bookhub-runtime')
   const [bookTransferStatus, setBookTransferStatus] = useState('all')
   const [bookTransferSearch, setBookTransferSearch] = useState('')
+  const [trailBookId, setTrailBookId] = useState(null)
+  const [trailRevokeTargetId, setTrailRevokeTargetId] = useState(null)
+  const [trailRevokeReason, setTrailRevokeReason] = useState('')
+
   const monitoringUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/monitoring/`
       : '/monitoring/'
+
   const [accessState, setAccessState] = useState({
     signInEnabled: true,
     signUpEnabled: true,
   })
+
   const selectedLoadService =
     selectedHealthService === 'all' ? 'bookhub-runtime' : selectedHealthService
 
@@ -130,6 +155,7 @@ const BackAdminPage = () => {
 
   useEffect(() => {
     const nextPanel = getPanelFromSearch(location.search)
+
     if (nextPanel !== panel) {
       setPanel(nextPanel)
     }
@@ -139,11 +165,13 @@ const BackAdminPage = () => {
     const nextPanel = allowedPanels.includes(value) ? value : 'home'
     setPanel(nextPanel)
     const params = new URLSearchParams(location.search)
+
     if (nextPanel === 'home') {
       params.delete('panel')
     } else {
       params.set('panel', nextPanel)
     }
+
     history.replace({
       pathname: location.pathname,
       search: params.toString() ? `?${params.toString()}` : '',
@@ -210,6 +238,19 @@ const BackAdminPage = () => {
       search: bookTransferSearch,
     },
     skip: !canLoadBooks,
+    fetchPolicy: 'network-only',
+  })
+
+  const {
+    data: transferTrailData,
+    loading: transferTrailLoading,
+    refetch: refetchTransferTrail,
+  } = useQuery(BACK_ADMIN_BOOK_TRANSFER_TRAIL, {
+    variables: {
+      sessionToken,
+      bookId: trailBookId,
+    },
+    skip: !canLoadBooks || !trailBookId,
     fetchPolicy: 'network-only',
   })
 
@@ -280,10 +321,12 @@ const BackAdminPage = () => {
   const [setUserActive, { loading: setUserActiveLoading }] = useMutation(
     BACK_ADMIN_SET_USER_ACTIVE,
   )
+
   const [logoutUser, { loading: logoutUserLoading }] = useMutation(BACK_ADMIN_LOGOUT_USER)
   const [logoutAllUsers, { loading: logoutAllLoading }] = useMutation(BACK_ADMIN_LOGOUT_ALL)
   const [sendEmail, { loading: sendEmailLoading }] = useMutation(BACK_ADMIN_SEND_EMAIL)
   const [setAccess, { loading: setAccessLoading }] = useMutation(BACK_ADMIN_SET_ACCESS)
+
   const [revokeBookTransfer, { loading: revokeBookTransferLoading }] = useMutation(
     BACK_ADMIN_REVOKE_BOOK_TRANSFER,
   )
@@ -301,17 +344,40 @@ const BackAdminPage = () => {
     setAccessLoading ||
     bookUserStatsLoading ||
     bookTransfersLoading ||
+    transferTrailLoading ||
     revokeBookTransferLoading
+
+  const transferTrail = transferTrailData?.backAdminBookTransferTrail || null
+  const trailRevokeTargets = transferTrail?.revokeTargets || []
+
+  const activeTrailTransfer =
+    transferTrail?.entries?.find(entry => entry.status === 'active') || null
+
+  useEffect(() => {
+    if (trailRevokeTargets.length === 1) {
+      setTrailRevokeTargetId(trailRevokeTargets[0].userId)
+      return
+    }
+
+    if (
+      trailRevokeTargetId &&
+      !trailRevokeTargets.some(target => target.userId === trailRevokeTargetId)
+    ) {
+      setTrailRevokeTargetId(null)
+    }
+  }, [trailRevokeTargetId, trailRevokeTargets])
 
   const handleRequestOtp = async () => {
     try {
       const normalized = emailInput.trim().toLowerCase()
       const { data } = await requestOtp({ variables: { email: normalized } })
       const result = data?.backAdminRequestOtp
+
       if (!result?.ok) {
         message.error(result?.message || 'OTP request failed')
         return
       }
+
       setOtpRequestedFor(normalized)
       message.success(result.message || 'OTP sent')
     } catch (error) {
@@ -375,6 +441,7 @@ const BackAdminPage = () => {
           const { data } = await logoutAllUsers({
             variables: { sessionToken, includeAdmins: false },
           })
+
           await refetchUsers()
           await refetchStats()
           message.success(`Logged out ${data?.backAdminLogoutAll || 0} users`)
@@ -398,6 +465,7 @@ const BackAdminPage = () => {
           signUpEnabled: next.signUpEnabled,
         },
       })
+
       const updated = data?.backAdminSetAccess || next
       setAccessState(updated)
       await Promise.all([refetchAccess(), refetchStats()])
@@ -416,17 +484,17 @@ const BackAdminPage = () => {
       content: (
         <Space direction="vertical" style={{ width: '100%' }}>
           <Alert
-            type="warning"
-            showIcon
-            message="This will move ownership back to the previous owner."
             description="The current owner will lose owner access unless the previous owner shares the book back."
+            message="This will move ownership back to the previous owner."
+            showIcon
+            type="warning"
           />
           <Typography.Text strong>{row.bookTitle}</Typography.Text>
           <Input
-            placeholder="Optional reason"
             onChange={event => {
               reason = event.target.value
             }}
+            placeholder="Optional reason"
           />
         </Space>
       ),
@@ -450,8 +518,55 @@ const BackAdminPage = () => {
     })
   }
 
+  const openTransferTrail = row => {
+    setTrailBookId(row.bookId)
+    setTrailRevokeTargetId(null)
+    setTrailRevokeReason('')
+  }
+
+  const closeTransferTrail = () => {
+    setTrailBookId(null)
+    setTrailRevokeTargetId(null)
+    setTrailRevokeReason('')
+  }
+
+  const handleRevokeFromTrail = async () => {
+    if (!activeTrailTransfer) {
+      message.error('There is no active transfer to revoke for this book.')
+      return
+    }
+
+    if (!trailRevokeTargetId) {
+      message.error('Select who ownership should be restored to.')
+      return
+    }
+
+    try {
+      await revokeBookTransfer({
+        variables: {
+          sessionToken,
+          transferId: activeTrailTransfer.id,
+          targetUserId: trailRevokeTargetId,
+          reason: trailRevokeReason.trim() || null,
+        },
+      })
+
+      await Promise.all([
+        refetchBookTransfers(),
+        refetchBookUserStats(),
+        refetchTransferTrail(),
+      ])
+
+      message.success('Ownership restored to selected trail owner')
+      closeTransferTrail()
+    } catch (error) {
+      message.error(error.message || 'Could not revoke ownership transfer')
+    }
+  }
+
   const handleSendEmail = async () => {
     if (!canSendEmail) return
+
     try {
       const { data } = await sendEmail({
         variables: {
@@ -463,6 +578,7 @@ const BackAdminPage = () => {
           sendToAll: emailAudience === 'all',
         },
       })
+
       const { sent, failed } = data?.backAdminSendEmail || { sent: 0, failed: 0 }
       message.success(`Email queued: ${sent}, failed: ${failed}`)
       setEmailSubject('')
@@ -477,8 +593,10 @@ const BackAdminPage = () => {
   const selectedUsers = users.filter(user => selectedUserIds.includes(user.id))
   const selectedUsersWithEmail = selectedUsers.filter(user => user.email)
   const allUsersWithEmail = users.filter(user => user.email)
+
   const recipientCount =
     emailAudience === 'all' ? allUsersWithEmail.length : selectedUsersWithEmail.length
+
   const canSendEmail = emailSubject.trim() && emailBody.trim() && recipientCount > 0
 
   const stats = statsData?.backAdminStats || {
@@ -486,17 +604,21 @@ const BackAdminPage = () => {
     activeUsers: 0,
     totalBooks: 0,
   }
+
   const access = accessState
   const emailQueueStats = emailQueueData?.backAdminEmailQueueStats || {}
   const serviceHealth = healthData?.backAdminInstanceHealth || []
+
   const serviceOptions = [
     { label: 'All services', value: 'all' },
     ...serviceHealth.map(item => ({ label: item.service, value: item.service })),
   ]
+
   const loadSeries = loadSeriesData?.backAdminLoadSeries || []
   const logs = logsData?.backAdminInstanceLogs || []
   const bookUserStats = bookUserStatsData?.backAdminBookUserStats || []
   const bookTransfers = bookTransfersData?.backAdminBookTransfers || []
+
   const bookGovernanceTotals = bookUserStats.reduce(
     (totals, row) => ({
       usersWithBooks: totals.usersWithBooks + (row.totalBooks > 0 ? 1 : 0),
@@ -514,7 +636,9 @@ const BackAdminPage = () => {
       usersInAverage: 0,
     },
   )
+
   const activeTransferCount = bookTransfers.filter(row => row.status === 'active').length
+
   const metadataAverage = bookGovernanceTotals.usersInAverage
     ? Math.round(
         bookGovernanceTotals.metadataAverage / bookGovernanceTotals.usersInAverage,
@@ -543,29 +667,30 @@ const BackAdminPage = () => {
           if (!row.isActive) {
             return (
               <Button
-                type="primary"
-                size="small"
                 disabled={setUserActiveLoading}
                 onClick={() => handleSetUserActive(row.id, true)}
+                size="small"
+                type="primary"
               >
                 Allow user
               </Button>
             )
           }
+
           return (
             <Space>
               <Button
                 danger
-                size="small"
                 disabled={logoutUserLoading}
                 onClick={() => handleLogoutUser(row.id)}
+                size="small"
               >
                 Logout user
               </Button>
               <Button
-                size="small"
                 disabled={setUserActiveLoading}
                 onClick={() => handleSetUserActive(row.id, false)}
+                size="small"
               >
                 Block user
               </Button>
@@ -647,21 +772,69 @@ const BackAdminPage = () => {
       render: value => (value ? new Date(value).toLocaleString() : ''),
     },
     {
+      title: 'Trail',
+      key: 'trail',
+      render: (_, row) => (
+        <Button
+          icon={<HistoryOutlined />}
+          onClick={() => openTransferTrail(row)}
+          shape="circle"
+          size="small"
+          title="View transfer trail"
+        />
+      ),
+    },
+    {
       title: 'Action',
       key: 'action',
       render: (_, row) =>
         row.status === 'active' ? (
           <Button
             danger
-            size="small"
             loading={revokeBookTransferLoading}
             onClick={() => handleRevokeBookTransfer(row)}
+            size="small"
           >
             Revoke
           </Button>
         ) : (
           <Typography.Text type="secondary">No action</Typography.Text>
         ),
+    },
+  ]
+
+  const trailEntryColumns = [
+    {
+      title: 'Time',
+      dataIndex: 'created',
+      key: 'created',
+      render: value => (value ? new Date(value).toLocaleString() : ''),
+    },
+    {
+      title: 'Owner before',
+      key: 'from',
+      render: (_, row) => row.fromUserName || row.fromUserEmail || row.fromUserId,
+    },
+    {
+      title: 'Owner after',
+      key: 'to',
+      render: (_, row) => row.toUserName || row.toUserEmail || row.toUserId,
+    },
+    {
+      title: 'Transferred by',
+      key: 'by',
+      render: (_, row) =>
+        row.transferredByName || row.transferredByEmail || row.transferredByUserId,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: value => (
+        <Tag color={value === 'active' ? 'blue' : 'default'}>
+          {`${value || ''}`.toUpperCase()}
+        </Tag>
+      ),
     },
   ]
 
@@ -710,15 +883,15 @@ const BackAdminPage = () => {
                   Enter your Datasphir email to receive an OTP.
                 </Typography.Text>
                 <Input
-                  value={emailInput}
-                  placeholder="you@datasphir.com"
                   onChange={e => setEmailInput(e.target.value)}
                   onPressEnter={handleRequestOtp}
+                  placeholder="you@datasphir.com"
+                  value={emailInput}
                 />
                 <Button
-                  type="primary"
                   loading={requestOtpLoading}
                   onClick={handleRequestOtp}
+                  type="primary"
                 >
                   Request OTP
                 </Button>
@@ -726,22 +899,22 @@ const BackAdminPage = () => {
             ) : (
               <>
                 <Alert
-                  type="info"
-                  showIcon
-                  message={`OTP sent to ${otpRequestedFor}`}
                   description="Enter the one-time code to continue."
+                  message={`OTP sent to ${otpRequestedFor}`}
+                  showIcon
+                  type="info"
                 />
                 <Input
-                  value={otpInput}
-                  placeholder="Enter 6-digit OTP"
                   onChange={e => setOtpInput(e.target.value)}
                   onPressEnter={handleVerifyOtp}
+                  placeholder="Enter 6-digit OTP"
+                  value={otpInput}
                 />
                 <Space>
                   <Button
-                    type="primary"
                     loading={verifyOtpLoading}
                     onClick={handleVerifyOtp}
+                    type="primary"
                   >
                     Verify OTP
                   </Button>
@@ -766,10 +939,10 @@ const BackAdminPage = () => {
     return (
       <Wrapper>
         <Alert
-          message="Back-admin session expired"
           description="Refresh and request a new OTP."
-          type="warning"
+          message="Back-admin session expired"
           showIcon
+          type="warning"
         />
       </Wrapper>
     )
@@ -778,7 +951,7 @@ const BackAdminPage = () => {
   return (
     <Wrapper>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <Row justify="space-between" align="middle">
+        <Row align="middle" justify="space-between">
           <Col>
             <Typography.Title level={3} style={{ marginBottom: 0 }}>
               Back Office
@@ -798,7 +971,6 @@ const BackAdminPage = () => {
         </Row>
 
         <Segmented
-          value={panel}
           onChange={value => navigatePanel(value)}
           options={[
             { value: 'home', label: 'Home' },
@@ -807,21 +979,22 @@ const BackAdminPage = () => {
             { value: 'thoth', label: 'Thoth Metadata Browser' },
             { value: 'books', label: 'Book Governance' },
           ]}
+          value={panel}
         />
 
         {panel === 'home' && (
           <Row gutter={[16, 16]}>
-            <Col xs={24} md={12}>
+            <Col md={12} xs={24}>
               <Card title="Manage Instance Activity">
                 <Typography.Paragraph>
                   Control sign-in/sign-up, manage users, force logout, and queue emails.
                 </Typography.Paragraph>
-                <Button type="primary" onClick={() => navigatePanel('manage')}>
+                <Button onClick={() => navigatePanel('manage')} type="primary">
                   Open Manage Instance Activity
                 </Button>
               </Card>
             </Col>
-            <Col xs={24} md={12}>
+            <Col md={12} xs={24}>
               <Card title="Instance Health Check and Logs">
                 <Typography.Paragraph>
                   View service health, load trends, and instance monitoring logs.
@@ -831,7 +1004,7 @@ const BackAdminPage = () => {
                 </Button>
               </Card>
             </Col>
-            <Col xs={24} md={12}>
+            <Col md={12} xs={24}>
               <Card title="Thoth Metadata Browser">
                 <Typography.Paragraph>
                   Browse Thoth test/live metadata records without writing GraphQL.
@@ -841,7 +1014,7 @@ const BackAdminPage = () => {
                 </Button>
               </Card>
             </Col>
-            <Col xs={24} md={12}>
+            <Col md={12} xs={24}>
               <Card title="Book Governance">
                 <Typography.Paragraph>
                   Track user book ownership, web publishing, metadata progress, and
@@ -854,12 +1027,12 @@ const BackAdminPage = () => {
             </Col>
             <Col xs={24}>
               <Card
-                title="Grafana Monitoring Dashboard"
                 extra={
-                  <Button type="primary" onClick={() => window.open(monitoringUrl, '_blank')}>
+                  <Button onClick={() => window.open(monitoringUrl, '_blank')} type="primary">
                     Open Grafana
                   </Button>
                 }
+                title="Grafana Monitoring Dashboard"
               >
                 <Typography.Paragraph>
                   Live infrastructure metrics are available at <strong>/monitoring/</strong>.
@@ -873,17 +1046,17 @@ const BackAdminPage = () => {
         {panel === 'manage' && (
           <>
             <Row gutter={[16, 16]}>
-              <Col xs={24} md={8}>
+              <Col md={8} xs={24}>
                 <Card>
                   <Statistic title="Total Users" value={stats.totalUsers} />
                 </Card>
               </Col>
-              <Col xs={24} md={8}>
+              <Col md={8} xs={24}>
                 <Card>
                   <Statistic title="Active Users" value={stats.activeUsers} />
                 </Card>
               </Col>
-              <Col xs={24} md={8}>
+              <Col md={8} xs={24}>
                 <Card>
                   <Statistic title="Total Books" value={stats.totalBooks} />
                 </Card>
@@ -891,23 +1064,23 @@ const BackAdminPage = () => {
             </Row>
 
             <Card
+              extra={<Button onClick={() => refetchEmailQueue()} size="small">Refresh</Button>}
               title="Email Queue"
-              extra={<Button size="small" onClick={() => refetchEmailQueue()}>Refresh</Button>}
             >
               <Row gutter={[16, 16]}>
-                <Col xs={12} md={4}>
+                <Col md={4} xs={12}>
                   <Statistic title="Pending" value={emailQueueStats.pending || 0} />
                 </Col>
-                <Col xs={12} md={4}>
+                <Col md={4} xs={12}>
                   <Statistic title="Processing" value={emailQueueStats.processing || 0} />
                 </Col>
-                <Col xs={12} md={4}>
+                <Col md={4} xs={12}>
                   <Statistic title="Sent" value={emailQueueStats.sent || 0} />
                 </Col>
-                <Col xs={12} md={4}>
+                <Col md={4} xs={12}>
                   <Statistic title="Failed" value={emailQueueStats.failed || 0} />
                 </Col>
-                <Col xs={12} md={4}>
+                <Col md={4} xs={12}>
                   <Statistic title="Total" value={emailQueueStats.total || 0} />
                 </Col>
               </Row>
@@ -935,12 +1108,12 @@ const BackAdminPage = () => {
             </Card>
 
             <Card
-              title="Session Controls"
               extra={
-                <Button danger onClick={handleLogoutAllUsers} loading={logoutAllLoading}>
+                <Button danger loading={logoutAllLoading} onClick={handleLogoutAllUsers}>
                   Logout all users
                 </Button>
               }
+              title="Session Controls"
             >
               <Typography.Text>
                 Force logout invalidates active sessions. Users can sign in again immediately.
@@ -950,8 +1123,8 @@ const BackAdminPage = () => {
             <Card title="Email Users">
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 <Radio.Group
-                  value={emailAudience}
                   onChange={e => setEmailAudience(e.target.value)}
+                  value={emailAudience}
                 >
                   <Space direction="vertical">
                     <Radio value="selected">
@@ -962,23 +1135,23 @@ const BackAdminPage = () => {
                 </Radio.Group>
 
                 <Input
-                  value={emailSubject}
                   onChange={e => setEmailSubject(e.target.value)}
                   placeholder="Email subject"
+                  value={emailSubject}
                 />
                 <TextArea
-                  value={emailBody}
                   onChange={e => setEmailBody(e.target.value)}
                   placeholder="Write your message"
                   rows={6}
+                  value={emailBody}
                 />
 
                 <Space>
                   <Button
-                    type="primary"
-                    onClick={handleSendEmail}
-                    loading={sendEmailLoading}
                     disabled={!canSendEmail}
+                    loading={sendEmailLoading}
+                    onClick={handleSendEmail}
+                    type="primary"
                   >
                     Send email
                   </Button>
@@ -991,15 +1164,15 @@ const BackAdminPage = () => {
 
             <Card title="Users">
               <Table
-                rowSelection={{
-                  selectedRowKeys: selectedUserIds,
-                  onChange: keys => setSelectedUserIds(keys),
-                }}
                 columns={userColumns}
                 dataSource={users}
                 loading={totalLoading}
                 pagination={{ pageSize: 20 }}
                 rowKey="id"
+                rowSelection={{
+                  selectedRowKeys: selectedUserIds,
+                  onChange: keys => setSelectedUserIds(keys),
+                }}
               />
             </Card>
           </>
@@ -1008,7 +1181,6 @@ const BackAdminPage = () => {
         {panel === 'health' && (
           <>
             <Card
-              title="Service Health"
               extra={
                 <Button
                   onClick={() => {
@@ -1020,13 +1192,14 @@ const BackAdminPage = () => {
                   Refresh
                 </Button>
               }
+              title="Service Health"
             >
               <Table
                 columns={healthColumns}
                 dataSource={serviceHealth}
                 loading={healthLoading}
-                rowKey="service"
                 pagination={false}
+                rowKey="service"
               />
             </Card>
 
@@ -1034,10 +1207,10 @@ const BackAdminPage = () => {
               <Space style={{ marginBottom: 12 }}>
                 <Typography.Text type="secondary">Service:</Typography.Text>
                 <Select
+                  onChange={value => setSelectedHealthService(value)}
+                  options={serviceOptions}
                   style={{ minWidth: 240 }}
                   value={selectedHealthService}
-                  options={serviceOptions}
-                  onChange={value => setSelectedHealthService(value)}
                 />
               </Space>
               <StatSvg points={loadSeries} />
@@ -1056,21 +1229,20 @@ const BackAdminPage = () => {
                 columns={logColumns}
                 dataSource={logs}
                 loading={logsLoading}
-                rowKey="id"
                 pagination={{ pageSize: 20 }}
+                rowKey="id"
               />
             </Card>
 
             <Card
-              title="Grafana (Embedded)"
               extra={
                 <Button onClick={() => window.open(monitoringUrl, '_blank')}>
                   Open in new tab
                 </Button>
               }
+              title="Grafana (Embedded)"
             >
               <iframe
-                title="Bookhub monitoring dashboard"
                 src={monitoringUrl}
                 style={{
                   width: '100%',
@@ -1079,6 +1251,7 @@ const BackAdminPage = () => {
                   borderRadius: 8,
                   background: '#fff',
                 }}
+                title="Bookhub monitoring dashboard"
               />
             </Card>
           </>
@@ -1087,7 +1260,7 @@ const BackAdminPage = () => {
         {panel === 'books' && (
           <>
             <Row gutter={[16, 16]}>
-              <Col xs={24} md={6}>
+              <Col md={6} xs={24}>
                 <Card>
                   <Statistic
                     title="Users with books"
@@ -1095,12 +1268,12 @@ const BackAdminPage = () => {
                   />
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col md={6} xs={24}>
                 <Card>
                   <Statistic title="Owned books" value={bookGovernanceTotals.ownedBooks} />
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col md={6} xs={24}>
                 <Card>
                   <Statistic
                     title="Web published"
@@ -1108,20 +1281,20 @@ const BackAdminPage = () => {
                   />
                 </Card>
               </Col>
-              <Col xs={24} md={6}>
+              <Col md={6} xs={24}>
                 <Card>
-                  <Statistic title="Avg metadata" suffix="%" value={metadataAverage} />
+                  <Statistic suffix="%" title="Avg metadata" value={metadataAverage} />
                 </Card>
               </Col>
             </Row>
 
             <Card
-              title="User Book Activity"
               extra={
                 <Button onClick={() => refetchBookUserStats()}>
                   Refresh
                 </Button>
               }
+              title="User Book Activity"
             >
               <Table
                 columns={bookUserColumns}
@@ -1133,7 +1306,6 @@ const BackAdminPage = () => {
             </Card>
 
             <Card
-              title="Ownership Transfers"
               extra={
                 <Space>
                   <Tag color={activeTransferCount ? 'blue' : 'default'}>
@@ -1144,6 +1316,7 @@ const BackAdminPage = () => {
                   </Button>
                 </Space>
               }
+              title="Ownership Transfers"
             >
               <Space
                 direction="vertical"
@@ -1151,30 +1324,30 @@ const BackAdminPage = () => {
                 style={{ width: '100%', marginBottom: 16 }}
               >
                 <Alert
-                  type="info"
-                  showIcon
-                  message="Ownership transfer audit"
                   description="Revoke is only available while the transfer is still the current active ownership path. If the book has already moved again, revocation is blocked server-side."
+                  message="Ownership transfer audit"
+                  showIcon
+                  type="info"
                 />
                 <Space wrap>
                   <Select
-                    style={{ width: 180 }}
-                    value={bookTransferStatus}
+                    onChange={value => setBookTransferStatus(value)}
                     options={[
                       { value: 'all', label: 'All transfers' },
                       { value: 'active', label: 'Active' },
                       { value: 'revoked', label: 'Revoked' },
                       { value: 'superseded', label: 'Superseded' },
                     ]}
-                    onChange={value => setBookTransferStatus(value)}
+                    style={{ width: 180 }}
+                    value={bookTransferStatus}
                   />
                   <Input.Search
                     allowClear
+                    onChange={event => setBookTransferSearch(event.target.value)}
+                    onSearch={() => refetchBookTransfers()}
                     placeholder="Search book or user"
                     style={{ width: 280 }}
                     value={bookTransferSearch}
-                    onChange={event => setBookTransferSearch(event.target.value)}
-                    onSearch={() => refetchBookTransfers()}
                   />
                 </Space>
               </Space>
@@ -1189,6 +1362,130 @@ const BackAdminPage = () => {
             </Card>
           </>
         )}
+
+        <Modal
+          footer={[
+            <Button key="close" onClick={closeTransferTrail}>
+              Close
+            </Button>,
+            activeTrailTransfer ? (
+              <Button
+                danger
+                disabled={!trailRevokeTargetId}
+                key="revoke"
+                loading={revokeBookTransferLoading}
+                onClick={handleRevokeFromTrail}
+                type="primary"
+              >
+                Revoke to selected owner
+              </Button>
+            ) : null,
+          ].filter(Boolean)}
+          onCancel={closeTransferTrail}
+          open={Boolean(trailBookId)}
+          title={`Transfer trail${transferTrail?.bookTitle ? ` - ${transferTrail.bookTitle}` : ''}`}
+          width={960}
+        >
+          {transferTrailLoading && (
+            <Typography.Text type="secondary">Loading transfer trail...</Typography.Text>
+          )}
+
+          {!transferTrailLoading && transferTrail && (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Alert
+                description="This shows the ownership chain for this book. If the book has moved across many people, every recorded owner in the chain is shown here."
+                message="Ownership trail"
+                showIcon
+                type="info"
+              />
+
+              <Card size="small">
+                <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                  <Typography.Text strong>Current owner</Typography.Text>
+                  <Typography.Text>
+                    {transferTrail.currentOwnerName ||
+                      transferTrail.currentOwnerEmail ||
+                      transferTrail.currentOwnerUserId ||
+                      'Unknown'}
+                  </Typography.Text>
+                </Space>
+              </Card>
+
+              <Card size="small" title={`Owner path (${transferTrail.ownerPath.length})`}>
+                <Space wrap>
+                  {transferTrail.ownerPath.map((owner, index) => (
+                    <React.Fragment key={owner.pathKey}>
+                      <Tag color={index === transferTrail.ownerPath.length - 1 ? 'blue' : 'default'}>
+                        {owner.name || owner.email || owner.userId}
+                      </Tag>
+                      {index < transferTrail.ownerPath.length - 1 && (
+                        <Typography.Text type="secondary">-&gt;</Typography.Text>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </Space>
+              </Card>
+
+              {activeTrailTransfer ? (
+                <Card size="small" title="Revoke destination">
+                  <Space direction="vertical" style={{ width: '100%' }}>
+                    {trailRevokeTargets.length === 1 ? (
+                      <Alert
+                        message={`This will revoke ownership back to ${
+                          trailRevokeTargets[0].name ||
+                          trailRevokeTargets[0].email ||
+                          trailRevokeTargets[0].userId
+                        }.`}
+                        showIcon
+                        type="warning"
+                      />
+                    ) : (
+                      <>
+                        <Typography.Text>
+                          Select the previous owner that should receive ownership again.
+                        </Typography.Text>
+                        <Select
+                          onChange={value => setTrailRevokeTargetId(value)}
+                          options={trailRevokeTargets.map(target => ({
+                            value: target.userId,
+                            label: target.name || target.email || target.userId,
+                          }))}
+                          placeholder="Select owner from trail"
+                          style={{ width: '100%' }}
+                          value={trailRevokeTargetId}
+                        />
+                      </>
+                    )}
+                    <Input
+                      onChange={event => setTrailRevokeReason(event.target.value)}
+                      placeholder="Optional revoke reason"
+                      value={trailRevokeReason}
+                    />
+                  </Space>
+                </Card>
+              ) : (
+                <Alert
+                  description="This trail is historical only, or the latest active transfer has already been revoked."
+                  message="No active transfer to revoke"
+                  showIcon
+                  type="success"
+                />
+              )}
+
+              <Table
+                columns={trailEntryColumns}
+                dataSource={transferTrail.entries}
+                pagination={{ pageSize: 7 }}
+                rowKey="id"
+                size="small"
+              />
+            </Space>
+          )}
+
+          {!transferTrailLoading && !transferTrail && (
+            <Typography.Text type="secondary">No transfer trail found.</Typography.Text>
+          )}
+        </Modal>
 
         {panel === 'thoth' && <ThothBrowserPanel sessionToken={sessionToken} />}
       </Space>

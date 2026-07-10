@@ -853,6 +853,7 @@ const permissions = {
     backAdminUsers: allow,
     backAdminBookUserStats: allow,
     backAdminBookTransfers: allow,
+    backAdminBookTransferTrail: allow,
     backAdminAccess: allow,
     publicAccessControls: allow,
   },

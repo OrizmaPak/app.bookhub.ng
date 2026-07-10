@@ -100,6 +100,52 @@ export const BACK_ADMIN_BOOK_TRANSFERS = gql`
   }
 `
 
+export const BACK_ADMIN_BOOK_TRANSFER_TRAIL = gql`
+  query BackAdminBookTransferTrail($sessionToken: String!, $bookId: ID!) {
+    backAdminBookTransferTrail(sessionToken: $sessionToken, bookId: $bookId) {
+      bookId
+      bookTitle
+      currentOwnerUserId
+      currentOwnerEmail
+      currentOwnerName
+      ownerPath {
+        pathKey
+        userId
+        email
+        name
+      }
+      revokeTargets {
+        pathKey
+        userId
+        email
+        name
+      }
+      entries {
+        id
+        bookId
+        bookTitle
+        fromUserId
+        fromUserEmail
+        fromUserName
+        toUserId
+        toUserEmail
+        toUserName
+        transferredByUserId
+        transferredByEmail
+        transferredByName
+        status
+        reason
+        revokeReason
+        revokedByUserId
+        revokedByEmail
+        revokedByName
+        revokedAt
+        created
+      }
+    }
+  }
+`
+
 export const BACK_ADMIN_ACCESS = gql`
   query BackAdminAccess($sessionToken: String!) {
     backAdminAccess(sessionToken: $sessionToken) {
@@ -399,11 +445,13 @@ export const BACK_ADMIN_REVOKE_BOOK_TRANSFER = gql`
   mutation BackAdminRevokeBookTransfer(
     $sessionToken: String!
     $transferId: ID!
+    $targetUserId: ID
     $reason: String
   ) {
     backAdminRevokeBookTransfer(
       sessionToken: $sessionToken
       transferId: $transferId
+      targetUserId: $targetUserId
       reason: $reason
     ) {
       id

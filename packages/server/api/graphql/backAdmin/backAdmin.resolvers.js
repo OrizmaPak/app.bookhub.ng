@@ -298,6 +298,84 @@ const normalizeTransfer = (transfer, { bookById, titleByBookId, userById }) => {
   }
 }
 
+const summarizeTrailUser = (userId, userById, pathKey = userId) => {
+  const user = userById.get(userId) || {}
+
+  return {
+    pathKey,
+    userId,
+    email: user.email || '',
+    name: user.name || user.email || userId,
+  }
+}
+
+const getCurrentOwnerUserId = (bookId, { memberships, teamById }) => {
+  const ownerTeam = [...teamById.values()].find(
+    team => team.objectId === bookId && team.role === 'owner',
+  )
+
+  if (!ownerTeam) return null
+
+  const ownerMembership = memberships.find(member => member.teamId === ownerTeam.id)
+  return ownerMembership?.userId || null
+}
+
+const buildTransferTrail = (bookId, transfers, context) => {
+  const sortedTransfers = [...transfers].sort(
+    (a, b) => new Date(a.created).getTime() - new Date(b.created).getTime(),
+  )
+
+  const activeTransfer = sortedTransfers.find(transfer => transfer.status === 'active')
+  const currentOwnerUserId = getCurrentOwnerUserId(bookId, context)
+  const pathUserIds = []
+
+  sortedTransfers.forEach(transfer => {
+    if (!pathUserIds.length) pathUserIds.push(transfer.fromUserId)
+
+    if (pathUserIds[pathUserIds.length - 1] !== transfer.toUserId) {
+      pathUserIds.push(transfer.toUserId)
+    }
+  })
+
+  if (currentOwnerUserId && pathUserIds[pathUserIds.length - 1] !== currentOwnerUserId) {
+    pathUserIds.push(currentOwnerUserId)
+  }
+
+  const visiblePathUserIds = pathUserIds.filter(Boolean)
+
+  const currentOwner = currentOwnerUserId
+    ? summarizeTrailUser(currentOwnerUserId, context.userById)
+    : {}
+
+  const revokeTargetIds = []
+
+  if (activeTransfer) {
+    visiblePathUserIds
+      .filter(userId => userId !== activeTransfer.toUserId)
+      .reverse()
+      .forEach(userId => {
+        if (!revokeTargetIds.includes(userId)) revokeTargetIds.push(userId)
+      })
+  }
+
+  return {
+    bookId,
+    bookTitle: context.bookById.has(bookId)
+      ? titleForBook(bookId, context.titleByBookId)
+      : '(Book not found)',
+    currentOwnerUserId,
+    currentOwnerEmail: currentOwner.email || '',
+    currentOwnerName: currentOwner.name || '',
+    ownerPath: visiblePathUserIds.map((userId, index) =>
+      summarizeTrailUser(userId, context.userById, `${userId}-${index}`),
+    ),
+    revokeTargets: revokeTargetIds.map(userId =>
+      summarizeTrailUser(userId, context.userById),
+    ),
+    entries: sortedTransfers.map(transfer => normalizeTransfer(transfer, context)),
+  }
+}
+
 const getAccessConfig = async () => {
   const cached = getCached('access')
   if (cached) return cached
@@ -586,6 +664,21 @@ const backAdminBookTransfers = async (
     })
 }
 
+const backAdminBookTransferTrail = async (_, { sessionToken, bookId }) => {
+  assertSession(sessionToken)
+
+  const context = await getBookGovernanceContext()
+
+  const transfers = await BookOwnershipTransfer.query()
+    .where({
+      bookId,
+      deleted: false,
+    })
+    .orderBy('created', 'asc')
+
+  return buildTransferTrail(bookId, transfers, context)
+}
+
 const backAdminAccess = async (_, { sessionToken }) => {
   assertSession(sessionToken)
   return getAccessConfig()
@@ -757,7 +850,7 @@ const backAdminSetAccess = async (_, { sessionToken, signInEnabled, signUpEnable
 
 const backAdminRevokeBookTransfer = async (
   _,
-  { sessionToken, transferId, reason = null },
+  { sessionToken, transferId, targetUserId = null, reason = null },
 ) => {
   const session = assertSession(sessionToken)
   const users = await getUserRows()
@@ -770,7 +863,10 @@ const backAdminRevokeBookTransfer = async (
     transferId,
     adminUser?.id || null,
     reason,
-    { revokedByEmail: session.email },
+    {
+      revokedByEmail: session.email,
+      targetUserId,
+    },
   )
 
   const context = await getBookGovernanceContext()
@@ -889,6 +985,7 @@ module.exports = {
     backAdminUsers,
     backAdminBookUserStats,
     backAdminBookTransfers,
+    backAdminBookTransferTrail,
     backAdminAccess,
     backAdminEmailQueueStats,
     backAdminInstanceHealth,

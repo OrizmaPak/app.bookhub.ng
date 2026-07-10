@@ -686,6 +686,7 @@ const permissions = {
     backAdminUsers: true,
     backAdminBookUserStats: true,
     backAdminBookTransfers: true,
+    backAdminBookTransferTrail: true,
     backAdminAccess: true,
     publicAccessControls: true,
   },

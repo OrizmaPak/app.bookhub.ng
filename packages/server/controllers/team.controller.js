@@ -405,7 +405,7 @@ const revokeBookOwnershipTransfer = async (
   options = {},
 ) => {
   try {
-    const { trx, revokedByEmail = null } = options
+    const { trx, revokedByEmail = null, targetUserId = null } = options
 
     return useTransaction(
       async tr => {
@@ -427,9 +427,53 @@ const revokeBookOwnershipTransfer = async (
           throw new Error('Only active ownership transfers can be revoked')
         }
 
+        const transferTrail = await BookOwnershipTransfer.query(tr)
+          .where({
+            bookId: transfer.bookId,
+            deleted: false,
+          })
+          .orderBy('created', 'asc')
+
+        const targetOwnerUserId = targetUserId || transfer.fromUserId
+        const activeOwnerUserId = transfer.toUserId
+
+        if (targetOwnerUserId === activeOwnerUserId) {
+          throw new Error('The selected revoke target already owns this book')
+        }
+
+        const eligibleTargetIds = new Set()
+
+        transferTrail.forEach(item => {
+          if (item.id === transfer.id) {
+            eligibleTargetIds.add(item.fromUserId)
+            return
+          }
+
+          if (new Date(item.created).getTime() <= new Date(transfer.created).getTime()) {
+            eligibleTargetIds.add(item.fromUserId)
+            eligibleTargetIds.add(item.toUserId)
+          }
+        })
+
+        eligibleTargetIds.delete(activeOwnerUserId)
+
+        if (!eligibleTargetIds.has(targetOwnerUserId)) {
+          throw new Error('Selected revoke target is not in this book transfer trail')
+        }
+
+        const targetOwner = await User.findById(targetOwnerUserId, { trx: tr })
+
+        if (!targetOwner || targetOwner.isActive === false) {
+          throw new Error('Selected revoke target does not exist or is not active')
+        }
+
+        const targetOwnerIdentity = await Identity.findOne({
+          userId: targetOwnerUserId,
+        })
+
         const ownerTeam = await ensureCurrentOwner(
           transfer.bookId,
-          transfer.toUserId,
+          activeOwnerUserId,
           tr,
         )
 
@@ -442,42 +486,44 @@ const revokeBookOwnershipTransfer = async (
 
         await Team.updateMembershipByTeamId(
           ownerTeam.id,
-          [transfer.fromUserId],
+          [targetOwnerUserId],
           { trx: tr },
         )
 
         if (collaboratorTeam) {
-          await removeMemberIfExists(collaboratorTeam.id, transfer.fromUserId, {
+          await removeMemberIfExists(collaboratorTeam.id, targetOwnerUserId, {
             trx: tr,
           })
-          await removeMemberIfExists(collaboratorTeam.id, transfer.toUserId, {
+          await removeMemberIfExists(collaboratorTeam.id, activeOwnerUserId, {
             trx: tr,
           })
         }
 
         await removeUserFromBookTeams(
           transfer.bookId,
-          transfer.fromUserId,
+          targetOwnerUserId,
           tr,
           [ownerTeam.id],
         )
 
         await removeUserFromBookTeams(
           transfer.bookId,
-          transfer.toUserId,
+          activeOwnerUserId,
           tr,
           [ownerTeam.id],
         )
 
         const releasedLocks = await clearUserBookLocks(
           transfer.bookId,
-          transfer.toUserId,
+          activeOwnerUserId,
           tr,
         )
 
         const metadata = {
           ...(transfer.metadata || {}),
           revokedByEmail,
+          revokeTargetUserId: targetOwnerUserId,
+          revokeTargetEmail: targetOwnerIdentity?.email || null,
           revokeReleasedLocks: releasedLocks,
         }
 
