@@ -49,6 +49,8 @@ const StatusText = styled.p`
   margin: 8px 0 0;
 `
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
   const history = useHistory()
   const [options, setOptions] = useState([])
@@ -87,13 +89,25 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
         const fetchId = fetchRef.current
         setFetching(true)
 
-        searchForUsers({
-          variables: {
-            search: trimmedSearch,
-            exclude: currentUser?.id ? [currentUser.id] : [],
-            exactMatch: false,
-          },
-        })
+        const searchUsers = exactMatch =>
+          searchForUsers({
+            variables: {
+              search: EMAIL_PATTERN.test(trimmedSearch)
+                ? trimmedSearch.toLowerCase()
+                : trimmedSearch,
+              exclude: currentUser?.id ? [currentUser.id] : [],
+              exactMatch,
+            },
+          })
+
+        const searchRequest = EMAIL_PATTERN.test(trimmedSearch)
+          ? searchUsers(true).then(result => {
+              if (result?.data?.searchForUsers?.length) return result
+              return searchUsers(false)
+            })
+          : searchUsers(false)
+
+        searchRequest
           .then(({ data }) => {
             if (fetchId !== fetchRef.current) return
 
@@ -252,3 +266,4 @@ TransferOwnershipPanel.defaultProps = {
 }
 
 export default TransferOwnershipPanel
+
