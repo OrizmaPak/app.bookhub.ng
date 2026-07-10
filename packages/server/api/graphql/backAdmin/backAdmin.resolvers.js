@@ -9,6 +9,10 @@ const {
   getThothWork,
 } = require('../../../services/backAdminThoth.service')
 
+const {
+  revokeBookOwnershipTransfer,
+} = require('../../../controllers/team.controller')
+
 const { models } = require('../../../models')
 
 const CONTEXT = 'bookBuilder'
@@ -23,6 +27,10 @@ const {
   EmailJob,
   BackAdminOtp,
   InstanceMetric,
+  BookOwnershipTransfer,
+  BookTranslation,
+  Team,
+  TeamMember,
 } = models
 
 const SESSION_STORE_ERROR = 'Session store is not available. Run migrations.'
@@ -136,6 +144,157 @@ const countRows = async Model => {
 const getUserRows = async () => {
   const { result } = await User.find({}, { related: 'defaultIdentity' })
   return result
+}
+
+const asObject = value => {
+  if (!value) return {}
+  if (typeof value === 'object') return value
+
+  try {
+    return JSON.parse(value)
+  } catch (e) {
+    return {}
+  }
+}
+
+const asIsoString = value => {
+  if (!value) return null
+  if (typeof value === 'string') return value
+  if (value instanceof Date) return value.toISOString()
+  return `${value}`
+}
+
+const userDisplayName = user => {
+  if (!user) return ''
+  const fullName = [user.givenNames, user.surname].filter(Boolean).join(' ').trim()
+  return user.displayName || fullName || user.username || user.defaultIdentity?.email || ''
+}
+
+const makeUserLookup = users => {
+  const lookup = new Map()
+
+  users.forEach(user => {
+    lookup.set(user.id, {
+      id: user.id,
+      name: userDisplayName(user),
+      email: user.defaultIdentity?.email || '',
+      isActive: !!user.isActive,
+    })
+  })
+
+  return lookup
+}
+
+const titleForBook = (bookId, titleByBookId) =>
+  titleByBookId.get(bookId) || '(Untitled book)'
+
+const getBookTitleMap = async bookIds => {
+  if (!bookIds.length) return new Map()
+
+  const translations = await BookTranslation.query()
+    .select('bookId', 'title')
+    .whereIn('bookId', bookIds)
+
+  const titleByBookId = new Map()
+
+  translations.forEach(translation => {
+    if (!titleByBookId.has(translation.bookId) && translation.title) {
+      titleByBookId.set(translation.bookId, translation.title)
+    }
+  })
+
+  return titleByBookId
+}
+
+const metadataPercent = book => {
+  const podMetadata = asObject(book?.podMetadata)
+
+  const derivableMetadata = Array.isArray(podMetadata.derivableMetadata)
+    ? podMetadata.derivableMetadata
+    : []
+
+  const languages = Array.isArray(podMetadata.languages) ? podMetadata.languages : []
+
+  const contributors = Array.isArray(podMetadata.contributors)
+    ? podMetadata.contributors
+    : []
+
+  const isbns = Array.isArray(podMetadata.isbns) ? podMetadata.isbns : []
+
+  const checks = [
+    !!book?.publicationDate,
+    !!podMetadata.copyrightLicense || !!book?.license,
+    !!podMetadata.authors || contributors.length > 0,
+    languages.length > 0,
+    isbns.length > 0 || !!book?.isbn,
+    derivableMetadata.some(item => Number.isFinite(Number(item.value))),
+  ]
+
+  const completed = checks.filter(Boolean).length
+  return Math.round((completed / checks.length) * 100)
+}
+
+const getBookGovernanceContext = async () => {
+  const [users, books, teams] = await Promise.all([
+    getUserRows(),
+    Book.query().where({ deleted: false }),
+    Team.query()
+      .where({ global: false })
+      .whereIn('role', ['owner', 'collaborator']),
+  ])
+
+  const teamIds = teams.map(team => team.id)
+
+  const memberships = teamIds.length
+    ? await TeamMember.query().whereIn('teamId', teamIds)
+    : []
+
+  const bookById = new Map(books.map(book => [book.id, book]))
+  const titleByBookId = await getBookTitleMap(books.map(book => book.id))
+  const teamById = new Map(teams.map(team => [team.id, team]))
+  const userById = makeUserLookup(users)
+
+  return {
+    books,
+    bookById,
+    memberships,
+    teamById,
+    titleByBookId,
+    users,
+    userById,
+  }
+}
+
+const normalizeTransfer = (transfer, { bookById, titleByBookId, userById }) => {
+  const fromUser = userById.get(transfer.fromUserId) || {}
+  const toUser = userById.get(transfer.toUserId) || {}
+  const transferredBy = userById.get(transfer.transferredByUserId) || {}
+  const revokedBy = userById.get(transfer.revokedByUserId) || {}
+
+  return {
+    id: transfer.id,
+    bookId: transfer.bookId,
+    bookTitle: bookById.has(transfer.bookId)
+      ? titleForBook(transfer.bookId, titleByBookId)
+      : '(Book not found)',
+    fromUserId: transfer.fromUserId,
+    fromUserEmail: fromUser.email || '',
+    fromUserName: fromUser.name || '',
+    toUserId: transfer.toUserId,
+    toUserEmail: toUser.email || '',
+    toUserName: toUser.name || '',
+    transferredByUserId: transfer.transferredByUserId,
+    transferredByEmail: transferredBy.email || '',
+    transferredByName: transferredBy.name || '',
+    status: transfer.status,
+    reason: transfer.reason,
+    revokeReason: transfer.revokeReason,
+    revokedByUserId: transfer.revokedByUserId,
+    revokedByEmail: revokedBy.email || '',
+    revokedByName: revokedBy.name || '',
+    revokedAt: asIsoString(transfer.revokedAt),
+    created: asIsoString(transfer.created) || '',
+  }
 }
 
 const getAccessConfig = async () => {
@@ -315,6 +474,117 @@ const backAdminUsers = async (_, { sessionToken }) => {
     })
 }
 
+const backAdminBookUserStats = async (_, { sessionToken }) => {
+  assertSession(sessionToken)
+
+  const { bookById, memberships, teamById, users, userById } =
+    await getBookGovernanceContext()
+
+  const statsByUserId = new Map()
+
+  users.forEach(user => {
+    const userInfo = userById.get(user.id)
+
+    statsByUserId.set(user.id, {
+      userId: user.id,
+      displayName: userInfo?.name || '',
+      email: userInfo?.email || '',
+      isActive: !!userInfo?.isActive,
+      ownedBookIds: new Set(),
+      collaboratorBookIds: new Set(),
+    })
+  })
+
+  memberships.forEach(member => {
+    const team = teamById.get(member.teamId)
+    if (!team || !bookById.has(team.objectId)) return
+
+    const row = statsByUserId.get(member.userId)
+    if (!row) return
+
+    if (team.role === 'owner') row.ownedBookIds.add(team.objectId)
+    if (team.role === 'collaborator') row.collaboratorBookIds.add(team.objectId)
+  })
+
+  return [...statsByUserId.values()]
+    .map(row => {
+      const totalBookIds = new Set([
+        ...row.ownedBookIds,
+        ...row.collaboratorBookIds,
+      ])
+
+      const totalBooks = totalBookIds.size
+
+      const bookRows = [...totalBookIds]
+        .map(bookId => bookById.get(bookId))
+        .filter(Boolean)
+
+      const webPublishedBooks = bookRows.filter(
+        book => asObject(book.webPublishInfo).published === true,
+      ).length
+
+      const metadataAveragePercent = totalBooks
+        ? Math.round(
+            bookRows.reduce((sum, book) => sum + metadataPercent(book), 0) /
+              totalBooks,
+          )
+        : 0
+
+      return {
+        userId: row.userId,
+        displayName: row.displayName,
+        email: row.email,
+        isActive: row.isActive,
+        ownedBooks: row.ownedBookIds.size,
+        collaboratorBooks: row.collaboratorBookIds.size,
+        totalBooks,
+        webPublishedBooks,
+        metadataAveragePercent,
+      }
+    })
+    .sort((a, b) => {
+      if (b.totalBooks !== a.totalBooks) return b.totalBooks - a.totalBooks
+      return (a.displayName || a.email || '').localeCompare(
+        b.displayName || b.email || '',
+      )
+    })
+}
+
+const backAdminBookTransfers = async (
+  _,
+  { sessionToken, status = null, search = '' },
+) => {
+  assertSession(sessionToken)
+
+  const context = await getBookGovernanceContext()
+  let query = BookOwnershipTransfer.query().where({ deleted: false })
+
+  if (status && status !== 'all') {
+    query = query.where({ status })
+  }
+
+  const transfers = await query.orderBy('created', 'desc')
+  const normalizedSearch = `${search || ''}`.trim().toLowerCase()
+
+  return transfers
+    .map(transfer => normalizeTransfer(transfer, context))
+    .filter(row => {
+      if (!normalizedSearch) return true
+      return [
+        row.bookTitle,
+        row.fromUserEmail,
+        row.fromUserName,
+        row.toUserEmail,
+        row.toUserName,
+        row.transferredByEmail,
+        row.status,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    })
+}
+
 const backAdminAccess = async (_, { sessionToken }) => {
   assertSession(sessionToken)
   return getAccessConfig()
@@ -484,6 +754,31 @@ const backAdminSetAccess = async (_, { sessionToken, signInEnabled, signUpEnable
   return updatedAccess
 }
 
+const backAdminRevokeBookTransfer = async (
+  _,
+  { sessionToken, transferId, reason = null },
+) => {
+  const session = assertSession(sessionToken)
+  const users = await getUserRows()
+
+  const adminUser = users.find(
+    user => normalizeEmail(user.defaultIdentity?.email) === normalizeEmail(session.email),
+  )
+
+  if (!adminUser) {
+    throw new Error('Back-admin user was not found')
+  }
+
+  const revoked = await revokeBookOwnershipTransfer(
+    transferId,
+    adminUser.id,
+    reason,
+  )
+
+  const context = await getBookGovernanceContext()
+  return normalizeTransfer(revoked, context)
+}
+
 const backAdminInstanceHealth = async (_, { sessionToken }) => {
   assertSession(sessionToken)
   const rows = await InstanceMetric.query().orderBy('capturedAt', 'desc').limit(500)
@@ -594,6 +889,8 @@ module.exports = {
     backAdminValidate,
     backAdminStats,
     backAdminUsers,
+    backAdminBookUserStats,
+    backAdminBookTransfers,
     backAdminAccess,
     backAdminEmailQueueStats,
     backAdminInstanceHealth,
@@ -612,5 +909,6 @@ module.exports = {
     backAdminLogoutAll,
     backAdminSendEmail,
     backAdminSetAccess,
+    backAdminRevokeBookTransfer,
   },
 }

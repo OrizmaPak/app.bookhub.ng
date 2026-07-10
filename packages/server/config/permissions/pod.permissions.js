@@ -851,6 +851,8 @@ const permissions = {
     backAdminValidate: allow,
     backAdminStats: allow,
     backAdminUsers: allow,
+    backAdminBookUserStats: allow,
+    backAdminBookTransfers: allow,
     backAdminAccess: allow,
     publicAccessControls: allow,
   },
@@ -908,6 +910,7 @@ const permissions = {
     backAdminLogoutUser: allow,
     backAdminLogoutAll: allow,
     backAdminSendEmail: allow,
+    backAdminRevokeBookTransfer: allow,
   },
 }
 

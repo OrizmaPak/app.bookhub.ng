@@ -24,6 +24,8 @@ import {
 
 import {
   BACK_ADMIN_ACCESS,
+  BACK_ADMIN_BOOK_TRANSFERS,
+  BACK_ADMIN_BOOK_USER_STATS,
   BACK_ADMIN_EMAIL_QUEUE_STATS,
   BACK_ADMIN_INSTANCE_HEALTH,
   BACK_ADMIN_INSTANCE_LOGS,
@@ -31,6 +33,7 @@ import {
   BACK_ADMIN_LOGOUT_ALL,
   BACK_ADMIN_LOGOUT_USER,
   BACK_ADMIN_REQUEST_OTP,
+  BACK_ADMIN_REVOKE_BOOK_TRANSFER,
   BACK_ADMIN_SEND_EMAIL,
   BACK_ADMIN_SET_ACCESS,
   BACK_ADMIN_SET_USER_ACTIVE,
@@ -93,7 +96,7 @@ const StatSvg = ({ points }) => {
 const BackAdminPage = () => {
   const history = useHistory()
   const location = useLocation()
-  const allowedPanels = ['home', 'manage', 'health', 'thoth']
+  const allowedPanels = ['home', 'manage', 'health', 'thoth', 'books']
   const getPanelFromSearch = search => {
     const panelValue = new URLSearchParams(search).get('panel')
     return allowedPanels.includes(panelValue) ? panelValue : 'home'
@@ -110,6 +113,8 @@ const BackAdminPage = () => {
   const [emailSubject, setEmailSubject] = useState('')
   const [emailBody, setEmailBody] = useState('')
   const [selectedHealthService, setSelectedHealthService] = useState('bookhub-runtime')
+  const [bookTransferStatus, setBookTransferStatus] = useState('all')
+  const [bookTransferSearch, setBookTransferSearch] = useState('')
   const monitoringUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/monitoring/`
@@ -164,6 +169,7 @@ const BackAdminPage = () => {
   const canLoadData = isUnlocked && validateData?.backAdminValidate
   const canLoadManage = canLoadData && panel === 'manage'
   const canLoadHealth = canLoadData && panel === 'health'
+  const canLoadBooks = canLoadData && panel === 'books'
 
   const { data: statsData, loading: statsLoading, refetch: refetchStats } = useQuery(
     BACK_ADMIN_STATS,
@@ -182,6 +188,30 @@ const BackAdminPage = () => {
       fetchPolicy: 'network-only',
     },
   )
+
+  const {
+    data: bookUserStatsData,
+    loading: bookUserStatsLoading,
+    refetch: refetchBookUserStats,
+  } = useQuery(BACK_ADMIN_BOOK_USER_STATS, {
+    variables: { sessionToken },
+    skip: !canLoadBooks,
+    fetchPolicy: 'network-only',
+  })
+
+  const {
+    data: bookTransfersData,
+    loading: bookTransfersLoading,
+    refetch: refetchBookTransfers,
+  } = useQuery(BACK_ADMIN_BOOK_TRANSFERS, {
+    variables: {
+      sessionToken,
+      status: bookTransferStatus,
+      search: bookTransferSearch,
+    },
+    skip: !canLoadBooks,
+    fetchPolicy: 'network-only',
+  })
 
   const { data: accessData, loading: accessLoading, refetch: refetchAccess } = useQuery(
     BACK_ADMIN_ACCESS,
@@ -254,6 +284,9 @@ const BackAdminPage = () => {
   const [logoutAllUsers, { loading: logoutAllLoading }] = useMutation(BACK_ADMIN_LOGOUT_ALL)
   const [sendEmail, { loading: sendEmailLoading }] = useMutation(BACK_ADMIN_SEND_EMAIL)
   const [setAccess, { loading: setAccessLoading }] = useMutation(BACK_ADMIN_SET_ACCESS)
+  const [revokeBookTransfer, { loading: revokeBookTransferLoading }] = useMutation(
+    BACK_ADMIN_REVOKE_BOOK_TRANSFER,
+  )
 
   const totalLoading =
     validateLoading ||
@@ -265,7 +298,10 @@ const BackAdminPage = () => {
     logoutUserLoading ||
     logoutAllLoading ||
     sendEmailLoading ||
-    setAccessLoading
+    setAccessLoading ||
+    bookUserStatsLoading ||
+    bookTransfersLoading ||
+    revokeBookTransferLoading
 
   const handleRequestOtp = async () => {
     try {
@@ -372,6 +408,48 @@ const BackAdminPage = () => {
     }
   }
 
+  const handleRevokeBookTransfer = row => {
+    let reason = ''
+
+    Modal.confirm({
+      title: 'Revoke this ownership transfer?',
+      content: (
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Alert
+            type="warning"
+            showIcon
+            message="This will move ownership back to the previous owner."
+            description="The current owner will lose owner access unless the previous owner shares the book back."
+          />
+          <Typography.Text strong>{row.bookTitle}</Typography.Text>
+          <Input
+            placeholder="Optional reason"
+            onChange={event => {
+              reason = event.target.value
+            }}
+          />
+        </Space>
+      ),
+      okText: 'Revoke transfer',
+      okButtonProps: { danger: true, loading: revokeBookTransferLoading },
+      async onOk() {
+        try {
+          await revokeBookTransfer({
+            variables: {
+              sessionToken,
+              transferId: row.id,
+              reason: reason.trim() || null,
+            },
+          })
+          await Promise.all([refetchBookTransfers(), refetchBookUserStats()])
+          message.success('Ownership transfer revoked')
+        } catch (error) {
+          message.error(error.message || 'Could not revoke ownership transfer')
+        }
+      },
+    })
+  }
+
   const handleSendEmail = async () => {
     if (!canSendEmail) return
     try {
@@ -417,6 +495,31 @@ const BackAdminPage = () => {
   ]
   const loadSeries = loadSeriesData?.backAdminLoadSeries || []
   const logs = logsData?.backAdminInstanceLogs || []
+  const bookUserStats = bookUserStatsData?.backAdminBookUserStats || []
+  const bookTransfers = bookTransfersData?.backAdminBookTransfers || []
+  const bookGovernanceTotals = bookUserStats.reduce(
+    (totals, row) => ({
+      usersWithBooks: totals.usersWithBooks + (row.totalBooks > 0 ? 1 : 0),
+      ownedBooks: totals.ownedBooks + row.ownedBooks,
+      webPublishedBooks: totals.webPublishedBooks + row.webPublishedBooks,
+      metadataAverage:
+        totals.metadataAverage + (row.totalBooks > 0 ? row.metadataAveragePercent : 0),
+      usersInAverage: totals.usersInAverage + (row.totalBooks > 0 ? 1 : 0),
+    }),
+    {
+      usersWithBooks: 0,
+      ownedBooks: 0,
+      webPublishedBooks: 0,
+      metadataAverage: 0,
+      usersInAverage: 0,
+    },
+  )
+  const activeTransferCount = bookTransfers.filter(row => row.status === 'active').length
+  const metadataAverage = bookGovernanceTotals.usersInAverage
+    ? Math.round(
+        bookGovernanceTotals.metadataAverage / bookGovernanceTotals.usersInAverage,
+      )
+    : 0
 
   const userColumns = useMemo(
     () => [
@@ -473,6 +576,94 @@ const BackAdminPage = () => {
     ],
     [logoutUserLoading, setUserActiveLoading],
   )
+
+  const bookUserColumns = [
+    {
+      title: 'User',
+      dataIndex: 'displayName',
+      key: 'displayName',
+      render: (_, row) => row.displayName || row.email || '(No name)',
+    },
+    { title: 'Email', dataIndex: 'email', key: 'email' },
+    {
+      title: 'Access',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      render: value =>
+        value ? <Tag color="green">Active</Tag> : <Tag color="red">Blocked</Tag>,
+    },
+    { title: 'Owned', dataIndex: 'ownedBooks', key: 'ownedBooks' },
+    {
+      title: 'Collaborator',
+      dataIndex: 'collaboratorBooks',
+      key: 'collaboratorBooks',
+    },
+    { title: 'Total', dataIndex: 'totalBooks', key: 'totalBooks' },
+    {
+      title: 'Web published',
+      dataIndex: 'webPublishedBooks',
+      key: 'webPublishedBooks',
+    },
+    {
+      title: 'Metadata progress',
+      dataIndex: 'metadataAveragePercent',
+      key: 'metadataAveragePercent',
+      render: value => <Tag color={value >= 70 ? 'green' : 'orange'}>{value}%</Tag>,
+    },
+  ]
+
+  const transferColumns = [
+    { title: 'Book', dataIndex: 'bookTitle', key: 'bookTitle' },
+    {
+      title: 'From',
+      key: 'from',
+      render: (_, row) => row.fromUserName || row.fromUserEmail || row.fromUserId,
+    },
+    {
+      title: 'To',
+      key: 'to',
+      render: (_, row) => row.toUserName || row.toUserEmail || row.toUserId,
+    },
+    {
+      title: 'Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: value => (
+        <Tag color={value === 'active' ? 'blue' : 'default'}>
+          {`${value || ''}`.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Transferred',
+      dataIndex: 'created',
+      key: 'created',
+      render: value => (value ? new Date(value).toLocaleString() : ''),
+    },
+    {
+      title: 'Revoked',
+      dataIndex: 'revokedAt',
+      key: 'revokedAt',
+      render: value => (value ? new Date(value).toLocaleString() : ''),
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, row) =>
+        row.status === 'active' ? (
+          <Button
+            danger
+            size="small"
+            loading={revokeBookTransferLoading}
+            onClick={() => handleRevokeBookTransfer(row)}
+          >
+            Revoke
+          </Button>
+        ) : (
+          <Typography.Text type="secondary">No action</Typography.Text>
+        ),
+    },
+  ]
 
   const healthColumns = [
     { title: 'Service', dataIndex: 'service', key: 'service' },
@@ -614,6 +805,7 @@ const BackAdminPage = () => {
             { value: 'manage', label: 'Manage Instance Activity' },
             { value: 'health', label: 'Instance Health Check and Logs' },
             { value: 'thoth', label: 'Thoth Metadata Browser' },
+            { value: 'books', label: 'Book Governance' },
           ]}
         />
 
@@ -646,6 +838,17 @@ const BackAdminPage = () => {
                 </Typography.Paragraph>
                 <Button onClick={() => navigatePanel('thoth')}>
                   Open Thoth Metadata Browser
+                </Button>
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card title="Book Governance">
+                <Typography.Paragraph>
+                  Track user book ownership, web publishing, metadata progress, and
+                  ownership transfers.
+                </Typography.Paragraph>
+                <Button onClick={() => navigatePanel('books')}>
+                  Open Book Governance
                 </Button>
               </Card>
             </Col>
@@ -876,6 +1079,112 @@ const BackAdminPage = () => {
                   borderRadius: 8,
                   background: '#fff',
                 }}
+              />
+            </Card>
+          </>
+        )}
+
+        {panel === 'books' && (
+          <>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} md={6}>
+                <Card>
+                  <Statistic
+                    title="Users with books"
+                    value={bookGovernanceTotals.usersWithBooks}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} md={6}>
+                <Card>
+                  <Statistic title="Owned books" value={bookGovernanceTotals.ownedBooks} />
+                </Card>
+              </Col>
+              <Col xs={24} md={6}>
+                <Card>
+                  <Statistic
+                    title="Web published"
+                    value={bookGovernanceTotals.webPublishedBooks}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} md={6}>
+                <Card>
+                  <Statistic title="Avg metadata" suffix="%" value={metadataAverage} />
+                </Card>
+              </Col>
+            </Row>
+
+            <Card
+              title="User Book Activity"
+              extra={
+                <Button onClick={() => refetchBookUserStats()}>
+                  Refresh
+                </Button>
+              }
+            >
+              <Table
+                columns={bookUserColumns}
+                dataSource={bookUserStats}
+                loading={bookUserStatsLoading}
+                pagination={{ pageSize: 20 }}
+                rowKey="userId"
+              />
+            </Card>
+
+            <Card
+              title="Ownership Transfers"
+              extra={
+                <Space>
+                  <Tag color={activeTransferCount ? 'blue' : 'default'}>
+                    Active: {activeTransferCount}
+                  </Tag>
+                  <Button onClick={() => refetchBookTransfers()}>
+                    Refresh
+                  </Button>
+                </Space>
+              }
+            >
+              <Space
+                direction="vertical"
+                size="middle"
+                style={{ width: '100%', marginBottom: 16 }}
+              >
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Ownership transfer audit"
+                  description="Revoke is only available while the transfer is still the current active ownership path. If the book has already moved again, revocation is blocked server-side."
+                />
+                <Space wrap>
+                  <Select
+                    style={{ width: 180 }}
+                    value={bookTransferStatus}
+                    options={[
+                      { value: 'all', label: 'All transfers' },
+                      { value: 'active', label: 'Active' },
+                      { value: 'revoked', label: 'Revoked' },
+                      { value: 'superseded', label: 'Superseded' },
+                    ]}
+                    onChange={value => setBookTransferStatus(value)}
+                  />
+                  <Input.Search
+                    allowClear
+                    placeholder="Search book or user"
+                    style={{ width: 280 }}
+                    value={bookTransferSearch}
+                    onChange={event => setBookTransferSearch(event.target.value)}
+                    onSearch={() => refetchBookTransfers()}
+                  />
+                </Space>
+              </Space>
+
+              <Table
+                columns={transferColumns}
+                dataSource={bookTransfers}
+                loading={bookTransfersLoading}
+                pagination={{ pageSize: 20 }}
+                rowKey="id"
               />
             </Card>
           </>

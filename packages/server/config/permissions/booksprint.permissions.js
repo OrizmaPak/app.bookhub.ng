@@ -654,6 +654,8 @@ const permissions = {
     backAdminValidate: true,
     backAdminStats: true,
     backAdminUsers: true,
+    backAdminBookUserStats: true,
+    backAdminBookTransfers: true,
     backAdminAccess: true,
     publicAccessControls: true,
   },
@@ -700,6 +702,7 @@ const permissions = {
     backAdminLogoutUser: true,
     backAdminLogoutAll: true,
     backAdminSendEmail: true,
+    backAdminRevokeBookTransfer: true,
   },
 }
 

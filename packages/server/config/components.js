@@ -29,6 +29,7 @@ module.exports = [
   './models/emailJob',
   './models/backAdminOtp',
   './models/instanceMetric',
+  './models/bookOwnershipTransfer',
   './models/dataloader',
   './models/serviceCredential',
   './models/serviceCallbackToken',

@@ -19,6 +19,7 @@ const userSession = require('./userSession')
 const emailJob = require('./emailJob')
 const backAdminOtp = require('./backAdminOtp')
 const instanceMetric = require('./instanceMetric')
+const bookOwnershipTransfer = require('./bookOwnershipTransfer')
 const lock = require('./lock')
 const serviceCallbackToken = require('./serviceCallbackToken')
 const { models } = require('./dataloader')
@@ -39,6 +40,7 @@ module.exports = {
   emailJob,
   backAdminOtp,
   instanceMetric,
+  bookOwnershipTransfer,
   applicationParameter,
   bookCollection,
   bookCollectionTranslation,
@@ -79,6 +81,7 @@ module.exports = {
     EmailJob: emailJob.model,
     BackAdminOtp: backAdminOtp.model,
     InstanceMetric: instanceMetric.model,
+    BookOwnershipTransfer: bookOwnershipTransfer.model,
     Lock: lock.model,
     loader,
     ServiceCallbackToken: serviceCallbackToken.model,

@@ -13,6 +13,41 @@ type BackAdminUser {
   isVerified: Boolean!
 }
 
+type BackAdminBookUserStats {
+  userId: ID!
+  displayName: String
+  email: String
+  isActive: Boolean!
+  ownedBooks: Int!
+  collaboratorBooks: Int!
+  totalBooks: Int!
+  webPublishedBooks: Int!
+  metadataAveragePercent: Int!
+}
+
+type BackAdminBookTransfer {
+  id: ID!
+  bookId: ID!
+  bookTitle: String
+  fromUserId: ID!
+  fromUserEmail: String
+  fromUserName: String
+  toUserId: ID!
+  toUserEmail: String
+  toUserName: String
+  transferredByUserId: ID!
+  transferredByEmail: String
+  transferredByName: String
+  status: String!
+  reason: String
+  revokeReason: String
+  revokedByUserId: ID
+  revokedByEmail: String
+  revokedByName: String
+  revokedAt: String
+  created: String!
+}
+
 type BackAdminAccess {
   signInEnabled: Boolean!
   signUpEnabled: Boolean!
@@ -212,6 +247,12 @@ extend type Query {
   backAdminValidate(sessionToken: String!): Boolean!
   backAdminStats(sessionToken: String!): BackAdminStats!
   backAdminUsers(sessionToken: String!): [BackAdminUser!]!
+  backAdminBookUserStats(sessionToken: String!): [BackAdminBookUserStats!]!
+  backAdminBookTransfers(
+    sessionToken: String!
+    status: String
+    search: String
+  ): [BackAdminBookTransfer!]!
   backAdminAccess(sessionToken: String!): BackAdminAccess!
   backAdminEmailQueueStats(sessionToken: String!): BackAdminEmailQueueStats!
   backAdminInstanceHealth(sessionToken: String!): [BackAdminInstanceHealth!]!
@@ -265,4 +306,9 @@ extend type Mutation {
     signInEnabled: Boolean!
     signUpEnabled: Boolean!
   ): BackAdminAccess!
+  backAdminRevokeBookTransfer(
+    sessionToken: String!
+    transferId: ID!
+    reason: String
+  ): BackAdminBookTransfer!
 }

@@ -11,7 +11,13 @@ const {
 const Book = require('../models/book/book.model')
 const { bookInvite } = require('./helpers/emailTemplates')
 
-const { Team } = require('../models').models
+const {
+  BookComponent,
+  BookOwnershipTransfer,
+  Lock,
+  Team,
+} = require('../models').models
+
 const User = require('../models/user/user.model')
 
 const getObjectTeam = async (
@@ -225,6 +231,72 @@ const removeMemberIfExists = async (teamId, userId, options = {}) => {
   return Team.removeMember(teamId, userId, { trx })
 }
 
+const clearUserBookLocks = async (bookId, userId, trx) => {
+  const bookComponents = await BookComponent.query(trx)
+    .select('id')
+    .where({ bookId, deleted: false })
+
+  const componentIds = bookComponents.map(component => component.id).filter(Boolean)
+
+  if (!componentIds.length) return 0
+
+  return Lock.query(trx)
+    .delete()
+    .whereIn('foreignId', componentIds)
+    .where({
+      foreignType: 'bookComponent',
+      userId,
+    })
+}
+
+const ensureCurrentOwner = async (bookId, userId, trx) => {
+  const ownerTeam = await getObjectTeam('owner', bookId, false, { trx })
+
+  if (!ownerTeam) {
+    throw new Error('Owner team was not found for this book')
+  }
+
+  const ownerMembership = await TeamMember.findOne(
+    {
+      teamId: ownerTeam.id,
+      userId,
+    },
+    { trx },
+  )
+
+  if (!ownerMembership) {
+    throw new Error('The expected current owner no longer owns this book')
+  }
+
+  return ownerTeam
+}
+
+const removeUserFromBookTeams = async (
+  bookId,
+  userId,
+  trx,
+  excludeTeamIds = [],
+) => {
+  const excluded = new Set(excludeTeamIds)
+
+  const teams = await Team.query(trx)
+    .select('id')
+    .where({
+      objectId: bookId,
+      global: false,
+    })
+
+  const targetTeams = teams.filter(team => !excluded.has(team.id))
+
+  await Promise.all(
+    targetTeams.map(team =>
+      removeMemberIfExists(team.id, userId, {
+        trx,
+      }),
+    ),
+  )
+}
+
 const transferBookOwnership = async (
   bookId,
   currentOwnerUserId,
@@ -250,25 +322,7 @@ const transferBookOwnership = async (
           throw new Error('The selected user does not exist or is not active')
         }
 
-        const ownerTeam = await getObjectTeam('owner', bookId, false, {
-          trx: tr,
-        })
-
-        if (!ownerTeam) {
-          throw new Error('Owner team was not found for this book')
-        }
-
-        const currentOwnerMembership = await TeamMember.findOne(
-          {
-            teamId: ownerTeam.id,
-            userId: currentOwnerUserId,
-          },
-          { trx: tr },
-        )
-
-        if (!currentOwnerMembership) {
-          throw new Error('Only the current owner can transfer ownership')
-        }
+        const ownerTeam = await ensureCurrentOwner(bookId, currentOwnerUserId, tr)
 
         const collaboratorTeam = await getObjectTeam(
           'collaborator',
@@ -292,6 +346,44 @@ const transferBookOwnership = async (
           })
         }
 
+        await removeUserFromBookTeams(
+          bookId,
+          currentOwnerUserId,
+          tr,
+          [ownerTeam.id],
+        )
+
+        await removeUserFromBookTeams(bookId, newOwnerUserId, tr, [
+          ownerTeam.id,
+        ])
+
+        const releasedLocks = await clearUserBookLocks(bookId, currentOwnerUserId, tr)
+
+        await BookOwnershipTransfer.query(tr)
+          .where({
+            bookId,
+            deleted: false,
+            status: 'active',
+          })
+          .patch({
+            status: 'superseded',
+            updated: new Date().toISOString(),
+          })
+
+        await BookOwnershipTransfer.insert(
+          {
+            bookId,
+            fromUserId: currentOwnerUserId,
+            toUserId: newOwnerUserId,
+            transferredByUserId: currentOwnerUserId,
+            status: 'active',
+            metadata: {
+              releasedLocks,
+            },
+          },
+          { trx: tr },
+        )
+
         logger.info(
           `>>> ownership of book ${bookId} transferred from ${currentOwnerUserId} to ${newOwnerUserId}`,
         )
@@ -306,6 +398,111 @@ const transferBookOwnership = async (
   }
 }
 
+const revokeBookOwnershipTransfer = async (
+  transferId,
+  revokedByUserId,
+  reason = null,
+  options = {},
+) => {
+  try {
+    const { trx } = options
+
+    return useTransaction(
+      async tr => {
+        if (!transferId) throw new Error('Transfer id is required')
+        if (!revokedByUserId) throw new Error('Revoking user is required')
+
+        const transfer = await BookOwnershipTransfer.findById(transferId, {
+          trx: tr,
+        })
+
+        if (!transfer || transfer.deleted) {
+          throw new Error('Ownership transfer record was not found')
+        }
+
+        if (transfer.status !== 'active') {
+          throw new Error('Only active ownership transfers can be revoked')
+        }
+
+        const ownerTeam = await ensureCurrentOwner(
+          transfer.bookId,
+          transfer.toUserId,
+          tr,
+        )
+
+        const collaboratorTeam = await getObjectTeam(
+          'collaborator',
+          transfer.bookId,
+          false,
+          { trx: tr },
+        )
+
+        await Team.updateMembershipByTeamId(
+          ownerTeam.id,
+          [transfer.fromUserId],
+          { trx: tr },
+        )
+
+        if (collaboratorTeam) {
+          await removeMemberIfExists(collaboratorTeam.id, transfer.fromUserId, {
+            trx: tr,
+          })
+          await removeMemberIfExists(collaboratorTeam.id, transfer.toUserId, {
+            trx: tr,
+          })
+        }
+
+        await removeUserFromBookTeams(
+          transfer.bookId,
+          transfer.fromUserId,
+          tr,
+          [ownerTeam.id],
+        )
+
+        await removeUserFromBookTeams(
+          transfer.bookId,
+          transfer.toUserId,
+          tr,
+          [ownerTeam.id],
+        )
+
+        const releasedLocks = await clearUserBookLocks(
+          transfer.bookId,
+          transfer.toUserId,
+          tr,
+        )
+
+        const metadata = {
+          ...(transfer.metadata || {}),
+          revokeReleasedLocks: releasedLocks,
+        }
+
+        const revoked = await BookOwnershipTransfer.patchAndFetchById(
+          transfer.id,
+          {
+            status: 'revoked',
+            revokedByUserId,
+            revokedAt: new Date().toISOString(),
+            revokeReason: reason || null,
+            metadata,
+          },
+          { trx: tr },
+        )
+
+        logger.info(
+          `>>> ownership transfer ${transferId} revoked by ${revokedByUserId}`,
+        )
+
+        return revoked
+      },
+      { trx },
+    )
+  } catch (e) {
+    logger.error(`>>> revokeBookOwnershipTransfer failed: ${e.message}`)
+    throw new Error(e.message)
+  }
+}
+
 module.exports = {
   createTeam,
   getObjectTeam,
@@ -314,4 +511,5 @@ module.exports = {
   updateTeamMemberStatuses,
   addTeamMembers,
   transferBookOwnership,
+  revokeBookOwnershipTransfer,
 }

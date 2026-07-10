@@ -49,6 +49,57 @@ export const BACK_ADMIN_USERS = gql`
   }
 `
 
+export const BACK_ADMIN_BOOK_USER_STATS = gql`
+  query BackAdminBookUserStats($sessionToken: String!) {
+    backAdminBookUserStats(sessionToken: $sessionToken) {
+      userId
+      displayName
+      email
+      isActive
+      ownedBooks
+      collaboratorBooks
+      totalBooks
+      webPublishedBooks
+      metadataAveragePercent
+    }
+  }
+`
+
+export const BACK_ADMIN_BOOK_TRANSFERS = gql`
+  query BackAdminBookTransfers(
+    $sessionToken: String!
+    $status: String
+    $search: String
+  ) {
+    backAdminBookTransfers(
+      sessionToken: $sessionToken
+      status: $status
+      search: $search
+    ) {
+      id
+      bookId
+      bookTitle
+      fromUserId
+      fromUserEmail
+      fromUserName
+      toUserId
+      toUserEmail
+      toUserName
+      transferredByUserId
+      transferredByEmail
+      transferredByName
+      status
+      reason
+      revokeReason
+      revokedByUserId
+      revokedByEmail
+      revokedByName
+      revokedAt
+      created
+    }
+  }
+`
+
 export const BACK_ADMIN_ACCESS = gql`
   query BackAdminAccess($sessionToken: String!) {
     backAdminAccess(sessionToken: $sessionToken) {
@@ -340,6 +391,31 @@ export const BACK_ADMIN_SET_ACCESS = gql`
     ) {
       signInEnabled
       signUpEnabled
+    }
+  }
+`
+
+export const BACK_ADMIN_REVOKE_BOOK_TRANSFER = gql`
+  mutation BackAdminRevokeBookTransfer(
+    $sessionToken: String!
+    $transferId: ID!
+    $reason: String
+  ) {
+    backAdminRevokeBookTransfer(
+      sessionToken: $sessionToken
+      transferId: $transferId
+      reason: $reason
+    ) {
+      id
+      bookId
+      bookTitle
+      fromUserEmail
+      fromUserName
+      toUserEmail
+      toUserName
+      status
+      revokeReason
+      revokedAt
     }
   }
 `
