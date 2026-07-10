@@ -1,4 +1,5 @@
 const { logger } = require('@coko/server')
+const Identity = require('@coko/server/src/models/identity/identity.model')
 
 const {
   searchForUsers,
@@ -53,6 +54,18 @@ module.exports = {
     async admin(user) {
       logger.info('in custom resolver')
       return isAdmin(user.id)
+    },
+    async email(user) {
+      if (user.email) return user.email
+      if (user.defaultIdentity?.email) return user.defaultIdentity.email
+      if (!user.id) return null
+
+      const identity = await Identity.query()
+        .where('user_id', user.id)
+        .where('is_default', true)
+        .first()
+
+      return identity?.email || null
     },
     async isGlobal(user) {
       logger.info('isGlobal resolver')

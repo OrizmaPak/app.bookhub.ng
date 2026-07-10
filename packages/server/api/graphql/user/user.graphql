@@ -1,5 +1,6 @@
 extend type User {
   admin: Boolean!
+  email: String
   isGlobal: Boolean!
 }
 
