@@ -87,27 +87,22 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
 
         fetchRef.current += 1
         const fetchId = fetchRef.current
+
+        if (!EMAIL_PATTERN.test(trimmedSearch)) {
+          setOptions([])
+          setFetching(false)
+          return
+        }
+
         setFetching(true)
 
-        const searchUsers = exactMatch =>
-          searchForUsers({
-            variables: {
-              search: EMAIL_PATTERN.test(trimmedSearch)
-                ? trimmedSearch.toLowerCase()
-                : trimmedSearch,
-              exclude: currentUser?.id ? [currentUser.id] : [],
-              exactMatch,
-            },
-          })
-
-        const searchRequest = EMAIL_PATTERN.test(trimmedSearch)
-          ? searchUsers(true).then(result => {
-              if (result?.data?.searchForUsers?.length) return result
-              return searchUsers(false)
-            })
-          : searchUsers(false)
-
-        searchRequest
+        searchForUsers({
+          variables: {
+            search: trimmedSearch.toLowerCase(),
+            exclude: currentUser?.id ? [currentUser.id] : [],
+            exactMatch: true,
+          },
+        })
           .then(({ data }) => {
             if (fetchId !== fetchRef.current) return
 
@@ -196,9 +191,13 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
             fetching ? (
               <Spin spinning />
             ) : searchValue.trim() ? (
-              'No matching registered user found'
+              EMAIL_PATTERN.test(searchValue.trim()) ? (
+                'No matching registered email found'
+              ) : (
+                'Enter a full email address'
+              )
             ) : (
-              'Type a name or email to search'
+              'Enter the registered user email'
             )
           }
           onChange={option => {
@@ -216,7 +215,7 @@ const TransferOwnershipPanel = ({ bookId, currentUser, isCurrentOwner }) => {
           }}
           onSearch={handleSearch}
           options={options}
-          placeholder="Search existing users by name or email"
+          placeholder="Enter registered user email"
           searchValue={searchValue}
           showSearch
           value={selectedUser}
