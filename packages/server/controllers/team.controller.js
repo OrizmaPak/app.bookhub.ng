@@ -405,12 +405,15 @@ const revokeBookOwnershipTransfer = async (
   options = {},
 ) => {
   try {
-    const { trx } = options
+    const { trx, revokedByEmail = null } = options
 
     return useTransaction(
       async tr => {
         if (!transferId) throw new Error('Transfer id is required')
-        if (!revokedByUserId) throw new Error('Revoking user is required')
+
+        if (!revokedByUserId && !revokedByEmail) {
+          throw new Error('Revoking user or email is required')
+        }
 
         const transfer = await BookOwnershipTransfer.findById(transferId, {
           trx: tr,
@@ -474,6 +477,7 @@ const revokeBookOwnershipTransfer = async (
 
         const metadata = {
           ...(transfer.metadata || {}),
+          revokedByEmail,
           revokeReleasedLocks: releasedLocks,
         }
 

@@ -266,6 +266,7 @@ const getBookGovernanceContext = async () => {
 }
 
 const normalizeTransfer = (transfer, { bookById, titleByBookId, userById }) => {
+  const metadata = asObject(transfer.metadata)
   const fromUser = userById.get(transfer.fromUserId) || {}
   const toUser = userById.get(transfer.toUserId) || {}
   const transferredBy = userById.get(transfer.transferredByUserId) || {}
@@ -290,8 +291,8 @@ const normalizeTransfer = (transfer, { bookById, titleByBookId, userById }) => {
     reason: transfer.reason,
     revokeReason: transfer.revokeReason,
     revokedByUserId: transfer.revokedByUserId,
-    revokedByEmail: revokedBy.email || '',
-    revokedByName: revokedBy.name || '',
+    revokedByEmail: revokedBy.email || metadata.revokedByEmail || '',
+    revokedByName: revokedBy.name || metadata.revokedByEmail || '',
     revokedAt: asIsoString(transfer.revokedAt),
     created: asIsoString(transfer.created) || '',
   }
@@ -765,14 +766,11 @@ const backAdminRevokeBookTransfer = async (
     user => normalizeEmail(user.defaultIdentity?.email) === normalizeEmail(session.email),
   )
 
-  if (!adminUser) {
-    throw new Error('Back-admin user was not found')
-  }
-
   const revoked = await revokeBookOwnershipTransfer(
     transferId,
-    adminUser.id,
+    adminUser?.id || null,
     reason,
+    { revokedByEmail: session.email },
   )
 
   const context = await getBookGovernanceContext()
