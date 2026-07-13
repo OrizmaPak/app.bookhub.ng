@@ -1194,12 +1194,63 @@ const updateMetadata = async (metadata, options = {}) => {
   }
 }
 
+const hasContributorMetadataContent = contributor =>
+  [
+    contributor?.sourceUserId,
+    contributor?.email,
+    contributor?.firstName,
+    contributor?.fullName,
+    contributor?.lastName,
+    contributor?.role,
+    contributor?.title,
+    contributor?.orcid,
+    contributor?.website,
+  ].some(value => String(value || '').trim())
+
+const sanitizeContributorMetadata = contributors => {
+  if (!Array.isArray(contributors)) {
+    return contributors
+  }
+
+  return contributors
+    .filter(hasContributorMetadataContent)
+    .map((contributor, index) => ({
+      sourceUserId: contributor?.sourceUserId || '',
+      email: contributor?.email || '',
+      firstName: contributor?.firstName || '',
+      fullName: contributor?.fullName || '',
+      lastName: contributor?.lastName || '',
+      role: contributor?.role || '',
+      title: contributor?.title || '',
+      orcid: contributor?.orcid || '',
+      website: contributor?.website || '',
+      contributionType: contributor?.contributionType || '',
+      contributionOrdinal:
+        Number.isInteger(Number(contributor?.contributionOrdinal)) &&
+        Number(contributor.contributionOrdinal) > 0
+          ? Number(contributor.contributionOrdinal)
+          : index + 1,
+      mainContribution: contributor?.mainContribution === true || index === 0,
+      includeInThoth: contributor?.includeInThoth !== false,
+    }))
+}
+
+const sanitizePODMetadata = metadata => {
+  const clean = omitBy(metadata, isNil)
+
+  if (Array.isArray(clean.contributors)) {
+    clean.contributors = sanitizeContributorMetadata(clean.contributors)
+  }
+
+  return clean
+}
+
 const updatePODMetadata = async (bookId, metadata, options = {}) => {
   try {
     const { trx } = options
     return useTransaction(
       async tr => {
-        const clean = omitBy(metadata, isNil)
+        const clean = sanitizePODMetadata(metadata)
 
         const existingBook = await getBook(bookId, { trx: tr })
 
@@ -1272,7 +1323,7 @@ const exportBook = async (
 
     const result = await useTransaction(
       async tr => {
-        const result = await exporter(
+        const exportResult = await exporter(
           bookId,
           templateId,
           previewer,
@@ -1281,7 +1332,7 @@ const exportBook = async (
           additionalExportOptions,
         )
 
-        if (result && ['pdf', 'epub'].includes(fileExtension)) {
+        if (exportResult && ['pdf', 'epub'].includes(fileExtension)) {
 
           const book = await bookConstructor(bookId)
           const contentMetrics = deriveBookContentMetrics(book)
@@ -1290,8 +1341,8 @@ const exportBook = async (
             fileExtension === 'pdf'
               ? {
                   pageCount: await countPdfPagesFromFile(
-                    result.localPath
-                      ? path.join(`${process.cwd()}`, result.localPath)
+                    exportResult.localPath
+                      ? path.join(`${process.cwd()}`, exportResult.localPath)
                       : null,
                   ),
                 }
@@ -1307,7 +1358,7 @@ const exportBook = async (
           })
         }
 
-        return result
+        return exportResult
       },
       { trx, passedTrxOnly: true },
     )

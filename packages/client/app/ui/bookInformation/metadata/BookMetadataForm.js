@@ -317,6 +317,19 @@ const contributorIdentityKey = contributor => {
   return ''
 }
 
+const hasContributorContent = contributor =>
+  [
+    contributor?.sourceUserId,
+    contributor?.email,
+    contributor?.firstName,
+    contributor?.fullName,
+    contributor?.lastName,
+    contributor?.role,
+    contributor?.title,
+    contributor?.orcid,
+    contributor?.website,
+  ].some(value => String(value || '').trim())
+
 const mergeContributorValues = (existing, incoming) => {
   const existingIsOwner = existing.title === 'Book owner'
   const existingIsAuthor = existing.role === 'Author'
@@ -396,7 +409,11 @@ const normalizeContributorItem = (item, index) => ({
 })
 
 const normalizeContributors = contributors =>
-  dedupeContributors((contributors || []).map(normalizeContributorItem))
+  dedupeContributors(
+    (contributors || [])
+      .map(normalizeContributorItem)
+      .filter(hasContributorContent),
+  )
 
 const splitDisplayName = displayName => {
   const parts = String(displayName || '')
@@ -429,6 +446,9 @@ const CONTRIBUTOR_TEAM_ROLE_PRIORITY = {
   invitations: 3,
 }
 
+const CONTRIBUTOR_TEAM_ROLES = new Set(['owner', 'author', 'collaborator'])
+const CONTRIBUTOR_SHARE_STATUSES = new Set(['read', 'write', 'comment', 'view'])
+
 const sortContributorTeams = teams =>
   [...(teams || [])].sort(
     (a, b) =>
@@ -436,8 +456,76 @@ const sortContributorTeams = teams =>
       (CONTRIBUTOR_TEAM_ROLE_PRIORITY[b?.role] ?? 99),
   )
 
+const isCurrentContributorMember = (member, teamRole) => {
+  if (!CONTRIBUTOR_TEAM_ROLES.has(teamRole)) {
+    return false
+  }
+
+  const user = member?.user || {}
+
+  if (!user.id) {
+    return false
+  }
+
+  if (teamRole === 'owner' || teamRole === 'author') {
+    return true
+  }
+
+  return !member?.status || CONTRIBUTOR_SHARE_STATUSES.has(member.status)
+}
+
+const contributorAccessKeys = bookTeams => {
+  const keys = new Set()
+
+  sortContributorTeams(bookTeams).forEach(team => {
+    const members = Array.isArray(team?.members) ? team.members : []
+
+    members.forEach(member => {
+      if (!isCurrentContributorMember(member, team?.role)) {
+        return
+      }
+
+      const user = member?.user || {}
+
+      if (user.id) {
+        keys.add(`user:${user.id}`)
+      }
+
+      if (user.email) {
+        keys.add(`email:${String(user.email).toLowerCase()}`)
+      }
+    })
+  })
+
+  return keys
+}
+
+const pruneImportedContributorsWithoutAccess = (contributors, bookTeams) => {
+  const accessKeys = contributorAccessKeys(bookTeams)
+
+  if (!accessKeys.size) {
+    return contributors
+  }
+
+  return contributors.filter(contributor => {
+    const importedKeys = [
+      contributor?.sourceUserId ? `user:${contributor.sourceUserId}` : '',
+      contributor?.email
+        ? `email:${String(contributor.email).toLowerCase()}`
+        : '',
+    ].filter(Boolean)
+
+    if (!importedKeys.length) {
+      return true
+    }
+
+    return importedKeys.some(key => accessKeys.has(key))
+  })
+}
+
 const sharedUserToContributor = (member, teamRole, index) => {
   const user = member?.user || {}
+
   const fullName =
     user.displayName ||
     [user.givenNames, user.surname].filter(Boolean).join(' ') ||
@@ -470,13 +558,21 @@ const sharedUserToContributor = (member, teamRole, index) => {
 }
 
 const mergeSharedContributors = (contributors, bookTeams) => {
-  const normalized = normalizeContributors(contributors)
+  const normalized = pruneImportedContributorsWithoutAccess(
+    normalizeContributors(contributors),
+    bookTeams,
+  )
+
   const candidates = []
 
   sortContributorTeams(bookTeams).forEach(team => {
     const members = Array.isArray(team?.members) ? team.members : []
 
     members.forEach(member => {
+      if (!isCurrentContributorMember(member, team?.role)) {
+        return
+      }
+
       const candidate = sharedUserToContributor(
         member,
         team?.role,
@@ -526,6 +622,7 @@ const normalizeDerivableMetadata = metadata => {
     const field = DERIVABLE_METADATA_FIELDS.find(entry => entry.key === item.key)
     const storedValue = byKey[item.key] || {}
     const allowedFormats = field?.formats || ['web', 'pdf', 'epub']
+
     const sourceFormat = allowedFormats.includes(storedValue.sourceFormat)
       ? storedValue.sourceFormat
       : item.sourceFormat
@@ -653,18 +750,21 @@ const BookMetadataForm = ({
   const [previewValues, setPreviewValues] = useState(transformedInitialValues)
 
   const exportProfiles = exportProfilesData?.getBookExportProfiles?.result || []
+
   const webProfileOptions = exportProfiles
     .filter(profile => !['pdf', 'epub'].includes(profile.format))
     .map(profile => ({
       label: profile.displayName,
       value: profile.id,
     }))
+
   const pdfProfileOptions = exportProfiles
     .filter(profile => profile.format === 'pdf')
     .map(profile => ({
       label: profile.displayName,
       value: profile.id,
     }))
+
   const epubProfileOptions = exportProfiles
     .filter(profile => profile.format === 'epub')
     .map(profile => ({
@@ -690,6 +790,7 @@ const BookMetadataForm = ({
         },
       ])
     }
+
     setPreviewValues(currentValues => ({
       ...currentValues,
       ...transformedInitialValues,
@@ -768,11 +869,14 @@ const BookMetadataForm = ({
       const currentValues = form.getFieldsValue(true)
       const contributors = normalizeContributors(currentValues.contributors)
       const languages = normalizeLanguages(currentValues.languages)
+
       const derivableMetadata = normalizeDerivableMetadata(
         currentValues.derivableMetadata,
       )
+
       const resolvedAuthors =
         currentValues.authors || buildContributorAuthorString(contributors)
+
       const derived = resolveDerivedMetadata({
         ...currentValues,
         authors: resolvedAuthors,
@@ -835,6 +939,7 @@ const BookMetadataForm = ({
     }
 
     const currentContributors = form.getFieldValue('contributors') || []
+
     const mergedContributors = mergeSharedContributors(
       currentContributors,
       bookTeams,
@@ -845,6 +950,7 @@ const BookMetadataForm = ({
     }
 
     const currentValues = form.getFieldsValue(true)
+
     const resolvedAuthors =
       currentValues.authors || buildContributorAuthorString(mergedContributors)
 
@@ -868,6 +974,7 @@ const BookMetadataForm = ({
 
   const reviewContributors = normalizeContributors(previewValues.contributors)
   const reviewLanguages = normalizeLanguages(previewValues.languages)
+
   const reviewDerivableMetadata = normalizeDerivableMetadata(
     previewValues.derivableMetadata,
   )

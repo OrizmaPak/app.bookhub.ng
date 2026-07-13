@@ -225,7 +225,7 @@ const UserInviteModal = ({ bookId }) => {
 
         <ShareContributorPanel
           bookId={bookId}
-          bookTeams={bookTeamsAndInvites}
+          bookTeams={bookTeams}
           canChangeMetadata={canChangeAccess}
         />
 
