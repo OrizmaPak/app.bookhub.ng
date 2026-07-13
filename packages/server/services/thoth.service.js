@@ -404,6 +404,7 @@ const getExistingWorkRelationships = async workId => {
           contributions {
             fullName
             contributionType
+            contributionOrdinal
           }
           languages {
             languageCode
@@ -477,6 +478,26 @@ const findOrCreateContributor = async contributor => {
   return createContributor(contributor)
 }
 
+const nextAvailableContributionOrdinal = (preferredOrdinal, usedOrdinals) => {
+  const preferred = Number(preferredOrdinal)
+
+  if (
+    Number.isInteger(preferred) &&
+    preferred > 0 &&
+    !usedOrdinals.has(preferred)
+  ) {
+    return preferred
+  }
+
+  let nextOrdinal = 1
+
+  while (usedOrdinals.has(nextOrdinal)) {
+    nextOrdinal += 1
+  }
+
+  return nextOrdinal
+}
+
 const syncWorkRelationships = async ({ workId, book }) => {
   const { contributors, languages } = getThothRelationshipMetadata(book)
 
@@ -488,6 +509,12 @@ const syncWorkRelationships = async ({ workId, book }) => {
   }
 
   const existing = await getExistingWorkRelationships(workId)
+  const usedContributionOrdinals = new Set(
+    existing.contributions
+      .map(item => Number(item.contributionOrdinal))
+      .filter(ordinal => Number.isInteger(ordinal) && ordinal > 0),
+  )
+
   let syncedLanguages = 0
   let syncedContributors = 0
 
@@ -533,6 +560,10 @@ const syncWorkRelationships = async ({ workId, book }) => {
     }
 
     const contributorId = await findOrCreateContributor(contributor)
+    const contributionOrdinal = nextAvailableContributionOrdinal(
+      contributor.contributionOrdinal,
+      usedContributionOrdinals,
+    )
 
     await executeThothGraphQL({
       query: `
@@ -551,9 +582,16 @@ const syncWorkRelationships = async ({ workId, book }) => {
           firstName: contributor.firstName,
           lastName: contributor.lastName,
           fullName: contributor.fullName,
-          contributionOrdinal: contributor.contributionOrdinal,
+          contributionOrdinal,
         },
       },
+    })
+
+    usedContributionOrdinals.add(contributionOrdinal)
+    existing.contributions.push({
+      fullName: contributor.fullName,
+      contributionType: contributor.contributionType,
+      contributionOrdinal,
     })
 
     syncedContributors += 1
