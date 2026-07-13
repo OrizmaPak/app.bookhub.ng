@@ -1,9 +1,15 @@
 const { logger } = require('@coko/server')
 
-const { getBook, getBookTitle, getBookSubtitle } = require('../../../controllers/book.controller')
+const {
+  getBook,
+  getBookTitle,
+  getBookSubtitle,
+  updatePODMetadata,
+} = require('../../../controllers/book.controller')
 const { getObjectTeam } = require('../../../controllers/team.controller')
 const { isAdmin } = require('../../../controllers/user.controller')
 const {
+  applyThothContributorSyncMetadata,
   buildTemporaryDoi,
   getConnectionStatus,
   syncWork,
@@ -102,13 +108,23 @@ const thothSyncWorkHandler = async (_, { bookId, dryRun }, ctx) => {
     `thoth resolver: syncing book ${bookId} to Thoth (dryRun=${Boolean(dryRun)})`,
   )
 
-  return syncWork({
+  const result = await syncWork({
     book,
     title,
     subtitle,
     doi: resolvedDoi,
     dryRun,
   })
+
+  if (!dryRun) {
+    const syncedPodMetadata = applyThothContributorSyncMetadata(book, result)
+
+    if (syncedPodMetadata) {
+      await updatePODMetadata(book.id, syncedPodMetadata)
+    }
+  }
+
+  return result
 }
 
 module.exports = {

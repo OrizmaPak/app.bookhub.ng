@@ -902,6 +902,9 @@ const ProducerPage = () => {
               Number(item.contributionOrdinal) > 0
                 ? Number(item.contributionOrdinal)
                 : null,
+            thothContributorId: item?.thothContributorId || '',
+            thothContributionId: item?.thothContributionId || '',
+            thothSyncedAt: item?.thothSyncedAt || '',
             mainContribution: item?.mainContribution === true,
             includeInThoth: item?.includeInThoth !== false,
           })),

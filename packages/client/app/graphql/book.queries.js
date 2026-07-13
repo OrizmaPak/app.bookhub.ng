@@ -35,6 +35,9 @@ const GET_ENTIRE_BOOK = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {
@@ -323,6 +326,9 @@ const UPDATE_BOOK_POD_METADATA = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {
@@ -477,6 +483,9 @@ const LOCK_BOOK_COMPONENT_POD = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {

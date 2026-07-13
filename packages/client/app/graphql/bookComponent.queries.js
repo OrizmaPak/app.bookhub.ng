@@ -115,6 +115,9 @@ const DELETE_BOOK_COMPONENT = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {
@@ -202,6 +205,9 @@ const UPDATE_BOOK_COMPONENTS_ORDER = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {

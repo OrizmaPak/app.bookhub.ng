@@ -50,7 +50,11 @@ const bookComponentContentCreator = require('./helpers/bookComponentContentCreat
 const prepareTemplateFiles = require('./helpers/prepareWebTemplateFiles')
 
 const { flaxHandler } = require('./microServices.controller')
-const { buildTemporaryDoi, syncWork } = require('../services/thoth.service')
+const {
+  applyThothContributorSyncMetadata,
+  buildTemporaryDoi,
+  syncWork,
+} = require('../services/thoth.service')
 
 const {
   Book,
@@ -288,6 +292,12 @@ const autoSyncBookToThoth = async (
       doi: book.doi || buildTemporaryDoi(book.id),
       dryRun: false,
     })
+
+    const syncedPodMetadata = applyThothContributorSyncMetadata(book, result)
+
+    if (syncedPodMetadata) {
+      await updatePODMetadata(book.id, syncedPodMetadata)
+    }
 
     return buildThothSyncStatus(result)
   } catch (error) {
@@ -1230,6 +1240,9 @@ const sanitizeContributorMetadata = contributors => {
         Number(contributor.contributionOrdinal) > 0
           ? Number(contributor.contributionOrdinal)
           : index + 1,
+      thothContributorId: contributor?.thothContributorId || '',
+      thothContributionId: contributor?.thothContributionId || '',
+      thothSyncedAt: contributor?.thothSyncedAt || null,
       mainContribution: contributor?.mainContribution === true || index === 0,
       includeInThoth: contributor?.includeInThoth !== false,
     }))

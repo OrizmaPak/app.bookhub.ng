@@ -163,6 +163,9 @@ const GET_BOOK_COMPONENT_IDS = gql`
           contributionOrdinal
           mainContribution
           includeInThoth
+          thothContributorId
+          thothContributionId
+          thothSyncedAt
         }
         copyrightLicense
         derivableMetadata {

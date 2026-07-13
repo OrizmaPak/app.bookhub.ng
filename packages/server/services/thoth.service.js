@@ -356,6 +356,10 @@ const getThothRelationshipMetadata = book => {
           Number(item.contributionOrdinal) > 0
             ? Number(item.contributionOrdinal)
             : index + 1,
+        sourceUserId: item?.sourceUserId,
+        email: item?.email,
+        thothContributorId: item?.thothContributorId,
+        thothContributionId: item?.thothContributionId,
         mainContribution: item?.mainContribution === true || index === 0,
       })
     })
@@ -494,12 +498,68 @@ const findOrCreateContributor = async contributor => {
 const shouldReuseExistingContributor = (existingContribution, contributor) => {
   const existingOrcid = existingContribution?.contributor?.orcid
 
-  if (existingOrcid && contributor.orcid && existingOrcid !== contributor.orcid) {
+  if (
+    existingOrcid &&
+    contributor.orcid &&
+    existingOrcid !== contributor.orcid
+  ) {
     return false
   }
 
   return true
 }
+
+const getExistingContributionForContributor = (existing, contributor) => {
+  if (contributor.thothContributionId) {
+    const tracked = existing.contributions.find(
+      item => item.contributionId === contributor.thothContributionId,
+    )
+
+    if (tracked) {
+      return tracked
+    }
+  }
+
+  if (contributor.thothContributorId) {
+    const tracked = existing.contributions.find(
+      item => item.contributorId === contributor.thothContributorId,
+    )
+
+    if (tracked) {
+      return tracked
+    }
+  }
+
+  return existing.contributions.find(
+    item =>
+      Number(item.contributionOrdinal) ===
+      Number(contributor.contributionOrdinal),
+  )
+}
+
+const getExistingContributionByIdentity = (existing, contributor) => {
+  return existing.contributions.find(
+    item =>
+      item.fullName === contributor.fullName &&
+      item.contributionType === contributor.contributionType,
+  )
+}
+
+const buildContributorSyncRecord = ({
+  contributor,
+  contributorId,
+  contributionId,
+  contributionOrdinal,
+}) => ({
+  sourceUserId: contributor.sourceUserId || '',
+  email: contributor.email || '',
+  fullName: contributor.fullName,
+  contributionType: contributor.contributionType,
+  contributionOrdinal,
+  thothContributorId: contributorId,
+  thothContributionId: contributionId,
+  thothSyncedAt: new Date().toISOString(),
+})
 
 const updateContributor = async (contributorId, contributor) => {
   const result = await executeThothGraphQL({
@@ -527,6 +587,7 @@ const updateContributor = async (contributorId, contributor) => {
 
 const updateContribution = async ({
   contribution,
+  contributionOrdinal,
   contributor,
   contributorId,
   workId,
@@ -549,7 +610,7 @@ const updateContribution = async ({
         firstName: contributor.firstName,
         lastName: contributor.lastName,
         fullName: contributor.fullName,
-        contributionOrdinal: contribution.contributionOrdinal,
+        contributionOrdinal,
       },
     },
   })
@@ -596,6 +657,7 @@ const syncWorkRelationships = async ({ workId, book }) => {
 
   let syncedLanguages = 0
   let syncedContributors = 0
+  const contributorRecords = []
 
   for (const language of languages) {
     const exists = existing.languages.some(
@@ -628,51 +690,65 @@ const syncWorkRelationships = async ({ workId, book }) => {
   }
 
   for (const contributor of contributors) {
-    const existingByOrdinal = existing.contributions.find(
-      item =>
-        Number(item.contributionOrdinal) ===
-        Number(contributor.contributionOrdinal),
-    )
+    const existingContribution = getExistingContributionForContributor(
+      existing,
+      contributor,
+    ) || getExistingContributionByIdentity(existing, contributor)
 
-    if (existingByOrdinal?.contributionId) {
-      const contributorId = shouldReuseExistingContributor(
-        existingByOrdinal,
+    if (existingContribution?.contributionId) {
+      const reuseExistingContributor = shouldReuseExistingContributor(
+        existingContribution,
         contributor,
       )
-        ? existingByOrdinal.contributorId
+      const contributorId = reuseExistingContributor
+        ? existingContribution.contributorId
         : await findOrCreateContributor(contributor)
 
-      if (shouldReuseExistingContributor(existingByOrdinal, contributor)) {
+      if (reuseExistingContributor) {
         await updateContributor(contributorId, contributor)
       }
 
+      const currentOrdinal = Number(existingContribution.contributionOrdinal)
+
+      if (Number.isInteger(currentOrdinal) && currentOrdinal > 0) {
+        usedContributionOrdinals.delete(currentOrdinal)
+      }
+
+      const contributionOrdinal = nextAvailableContributionOrdinal(
+        contributor.contributionOrdinal,
+        usedContributionOrdinals,
+      )
+
       await updateContribution({
-        contribution: existingByOrdinal,
+        contribution: existingContribution,
+        contributionOrdinal,
         contributor,
         contributorId,
         workId,
       })
 
-      Object.assign(existingByOrdinal, {
+      usedContributionOrdinals.add(contributionOrdinal)
+
+      Object.assign(existingContribution, {
         contributorId,
         fullName: contributor.fullName,
         firstName: contributor.firstName,
         lastName: contributor.lastName,
         contributionType: contributor.contributionType,
         mainContribution: Boolean(contributor.mainContribution),
+        contributionOrdinal,
       })
 
+      contributorRecords.push(
+        buildContributorSyncRecord({
+          contributor,
+          contributorId,
+          contributionId: existingContribution.contributionId,
+          contributionOrdinal,
+        }),
+      )
+
       syncedContributors += 1
-      continue
-    }
-
-    const exists = existing.contributions.some(
-      item =>
-        item.fullName === contributor.fullName &&
-        item.contributionType === contributor.contributionType,
-    )
-
-    if (exists) {
       continue
     }
 
@@ -682,7 +758,7 @@ const syncWorkRelationships = async ({ workId, book }) => {
       usedContributionOrdinals,
     )
 
-    await executeThothGraphQL({
+    const createdContribution = await executeThothGraphQL({
       query: `
         mutation CreateContribution($data: NewContribution!) {
           createContribution(data: $data) {
@@ -703,20 +779,111 @@ const syncWorkRelationships = async ({ workId, book }) => {
         },
       },
     })
+    const contributionId =
+      createdContribution.data?.createContribution?.contributionId
 
     usedContributionOrdinals.add(contributionOrdinal)
     existing.contributions.push({
+      contributionId,
+      contributorId,
       fullName: contributor.fullName,
       contributionType: contributor.contributionType,
       contributionOrdinal,
     })
+
+    contributorRecords.push(
+      buildContributorSyncRecord({
+        contributor,
+        contributorId,
+        contributionId,
+        contributionOrdinal,
+      }),
+    )
 
     syncedContributors += 1
   }
 
   return {
     contributors: syncedContributors,
+    contributorRecords,
     languages: syncedLanguages,
+  }
+}
+
+const contributorSyncMatches = (contributor, record) => {
+  if (
+    contributor.thothContributionId &&
+    contributor.thothContributionId === record.thothContributionId
+  ) {
+    return true
+  }
+
+  if (
+    contributor.thothContributorId &&
+    contributor.thothContributorId === record.thothContributorId
+  ) {
+    return true
+  }
+
+  if (contributor.sourceUserId && contributor.sourceUserId === record.sourceUserId) {
+    return true
+  }
+
+  if (contributor.email && contributor.email === record.email) {
+    return true
+  }
+
+  return (
+    Number(contributor.contributionOrdinal) ===
+      Number(record.contributionOrdinal) &&
+    contributor.fullName === record.fullName &&
+    contributor.contributionType === record.contributionType
+  )
+}
+
+const applyThothContributorSyncMetadata = (book, syncResult) => {
+  const records = syncResult?.relationshipSync?.contributorRecords || []
+
+  if (!records.length) {
+    return null
+  }
+
+  const podMetadata = book?.podMetadata || {}
+  let changed = false
+
+  const contributors = (podMetadata.contributors || []).map(contributor => {
+    const record = records.find(item => contributorSyncMatches(contributor, item))
+
+    if (!record) {
+      return contributor
+    }
+
+    const nextContributor = {
+      ...contributor,
+      thothContributorId: record.thothContributorId || contributor.thothContributorId,
+      thothContributionId:
+        record.thothContributionId || contributor.thothContributionId,
+      thothSyncedAt: record.thothSyncedAt || contributor.thothSyncedAt,
+    }
+
+    if (
+      nextContributor.thothContributorId !== contributor.thothContributorId ||
+      nextContributor.thothContributionId !== contributor.thothContributionId ||
+      nextContributor.thothSyncedAt !== contributor.thothSyncedAt
+    ) {
+      changed = true
+    }
+
+    return nextContributor
+  })
+
+  if (!changed) {
+    return null
+  }
+
+  return {
+    ...podMetadata,
+    contributors,
   }
 }
 
@@ -836,6 +1003,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
       operation: 'update',
       connection,
       payload,
+      relationshipSync,
       message: `Existing Thoth work updated successfully. Synced ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
     }
   }
@@ -866,11 +1034,13 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
     operation: 'create',
     connection,
     payload,
+    relationshipSync,
     message: `New Thoth work created successfully. Synced ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
   }
 }
 
 module.exports = {
+  applyThothContributorSyncMetadata,
   buildAdditionalMetadataPayload,
   buildTemporaryDoi,
   buildWorkPayload,

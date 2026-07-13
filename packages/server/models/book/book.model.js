@@ -104,6 +104,9 @@ const contributorMetadataItem = {
     contributionOrdinal: {
       type: ['integer', 'null'],
     },
+    thothContributorId: string,
+    thothContributionId: string,
+    thothSyncedAt: dateNullable,
     mainContribution: {
       type: ['boolean', 'null'],
     },

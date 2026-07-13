@@ -354,6 +354,10 @@ const mergeContributorValues = (existing, incoming) => {
         : incoming.contributionType || existing.contributionType,
     contributionOrdinal:
       existing.contributionOrdinal || incoming.contributionOrdinal,
+    thothContributorId: existing.thothContributorId || incoming.thothContributorId,
+    thothContributionId:
+      existing.thothContributionId || incoming.thothContributionId,
+    thothSyncedAt: existing.thothSyncedAt || incoming.thothSyncedAt,
     mainContribution: existing.mainContribution || incoming.mainContribution,
     includeInThoth:
       existing.includeInThoth === false || incoming.includeInThoth === false
@@ -404,6 +408,9 @@ const normalizeContributorItem = (item, index) => ({
   website: item?.website || '',
   contributionType: item?.contributionType || 'AUTHOR',
   contributionOrdinal: item?.contributionOrdinal || index + 1,
+  thothContributorId: item?.thothContributorId || '',
+  thothContributionId: item?.thothContributionId || '',
+  thothSyncedAt: item?.thothSyncedAt || '',
   mainContribution: item?.mainContribution !== false && index === 0,
   includeInThoth: item?.includeInThoth !== false,
 })
@@ -552,6 +559,9 @@ const sharedUserToContributor = (member, teamRole, index) => {
     website: '',
     contributionType: isAuthorTeam ? 'AUTHOR' : 'CONTRIBUTIONS_BY',
     contributionOrdinal: index + 1,
+    thothContributorId: '',
+    thothContributionId: '',
+    thothSyncedAt: '',
     mainContribution: isAuthorTeam && index === 0,
     includeInThoth: true,
   }
@@ -1363,6 +1373,21 @@ const BookMetadataForm = ({
                           <Form.Item hidden name={[field.name, 'email']}>
                             <Input />
                           </Form.Item>
+                          <Form.Item
+                            hidden
+                            name={[field.name, 'thothContributorId']}
+                          >
+                            <Input />
+                          </Form.Item>
+                          <Form.Item
+                            hidden
+                            name={[field.name, 'thothContributionId']}
+                          >
+                            <Input />
+                          </Form.Item>
+                          <Form.Item hidden name={[field.name, 'thothSyncedAt']}>
+                            <Input />
+                          </Form.Item>
                           <Form.Item noStyle shouldUpdate>
                             {() => {
                               const contributor = form.getFieldValue([
@@ -1397,6 +1422,9 @@ const BookMetadataForm = ({
                             mainContribution: fields.length === 0,
                             sourceUserId: '',
                             email: '',
+                            thothContributorId: '',
+                            thothContributionId: '',
+                            thothSyncedAt: '',
                             includeInThoth: true,
                           })
                         }
@@ -1648,6 +1676,9 @@ BookMetadataForm.propTypes = {
         website: PropTypes.string,
         contributionType: PropTypes.string,
         contributionOrdinal: PropTypes.number,
+        thothContributorId: PropTypes.string,
+        thothContributionId: PropTypes.string,
+        thothSyncedAt: PropTypes.string,
         mainContribution: PropTypes.bool,
         includeInThoth: PropTypes.bool,
       }),

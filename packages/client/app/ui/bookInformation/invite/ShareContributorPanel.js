@@ -95,6 +95,9 @@ const contributorInput = item => ({
     Number(item.contributionOrdinal) > 0
       ? Number(item.contributionOrdinal)
       : null,
+  thothContributorId: item?.thothContributorId || '',
+  thothContributionId: item?.thothContributionId || '',
+  thothSyncedAt: item?.thothSyncedAt || '',
   mainContribution: item?.mainContribution === true,
   includeInThoth: item?.includeInThoth !== false,
 })
@@ -265,6 +268,15 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
                     <Input />
                   </Form.Item>
                   <Form.Item hidden name={[field.name, 'email']}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item hidden name={[field.name, 'thothContributorId']}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item hidden name={[field.name, 'thothContributionId']}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item hidden name={[field.name, 'thothSyncedAt']}>
                     <Input />
                   </Form.Item>
                   <Form.Item noStyle shouldUpdate>

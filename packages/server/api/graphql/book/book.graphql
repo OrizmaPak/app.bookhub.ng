@@ -110,6 +110,9 @@ type ContributorMetadata {
   website: String
   contributionType: String
   contributionOrdinal: Int
+  thothContributorId: ID
+  thothContributionId: ID
+  thothSyncedAt: Date
   mainContribution: Boolean
   includeInThoth: Boolean
 }
@@ -146,6 +149,9 @@ input ContributorMetadataInput {
   website: String
   contributionType: String
   contributionOrdinal: Int
+  thothContributorId: ID
+  thothContributionId: ID
+  thothSyncedAt: Date
   mainContribution: Boolean
   includeInThoth: Boolean
 }
