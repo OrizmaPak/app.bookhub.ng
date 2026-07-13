@@ -402,9 +402,22 @@ const getExistingWorkRelationships = async workId => {
       query ExistingWorkRelationships($workId: Uuid!) {
         work(workId: $workId) {
           contributions {
+            contributionId
+            contributorId
             fullName
+            firstName
+            lastName
             contributionType
+            mainContribution
             contributionOrdinal
+            contributor {
+              contributorId
+              firstName
+              lastName
+              fullName
+              orcid
+              website
+            }
           }
           languages {
             languageCode
@@ -478,6 +491,72 @@ const findOrCreateContributor = async contributor => {
   return createContributor(contributor)
 }
 
+const shouldReuseExistingContributor = (existingContribution, contributor) => {
+  const existingOrcid = existingContribution?.contributor?.orcid
+
+  if (existingOrcid && contributor.orcid && existingOrcid !== contributor.orcid) {
+    return false
+  }
+
+  return true
+}
+
+const updateContributor = async (contributorId, contributor) => {
+  const result = await executeThothGraphQL({
+    query: `
+      mutation UpdateContributor($data: PatchContributor!) {
+        updateContributor(data: $data) {
+          contributorId
+        }
+      }
+    `,
+    variables: {
+      data: cleanObject({
+        contributorId,
+        firstName: contributor.firstName,
+        lastName: contributor.lastName,
+        fullName: contributor.fullName,
+        orcid: contributor.orcid,
+        website: contributor.website,
+      }),
+    },
+  })
+
+  return result.data?.updateContributor?.contributorId
+}
+
+const updateContribution = async ({
+  contribution,
+  contributor,
+  contributorId,
+  workId,
+}) => {
+  const result = await executeThothGraphQL({
+    query: `
+      mutation UpdateContribution($data: PatchContribution!) {
+        updateContribution(data: $data) {
+          contributionId
+        }
+      }
+    `,
+    variables: {
+      data: {
+        contributionId: contribution.contributionId,
+        workId,
+        contributorId,
+        contributionType: contributor.contributionType,
+        mainContribution: Boolean(contributor.mainContribution),
+        firstName: contributor.firstName,
+        lastName: contributor.lastName,
+        fullName: contributor.fullName,
+        contributionOrdinal: contribution.contributionOrdinal,
+      },
+    },
+  })
+
+  return result.data?.updateContribution?.contributionId
+}
+
 const nextAvailableContributionOrdinal = (preferredOrdinal, usedOrdinals) => {
   const preferred = Number(preferredOrdinal)
 
@@ -549,6 +628,44 @@ const syncWorkRelationships = async ({ workId, book }) => {
   }
 
   for (const contributor of contributors) {
+    const existingByOrdinal = existing.contributions.find(
+      item =>
+        Number(item.contributionOrdinal) ===
+        Number(contributor.contributionOrdinal),
+    )
+
+    if (existingByOrdinal?.contributionId) {
+      const contributorId = shouldReuseExistingContributor(
+        existingByOrdinal,
+        contributor,
+      )
+        ? existingByOrdinal.contributorId
+        : await findOrCreateContributor(contributor)
+
+      if (shouldReuseExistingContributor(existingByOrdinal, contributor)) {
+        await updateContributor(contributorId, contributor)
+      }
+
+      await updateContribution({
+        contribution: existingByOrdinal,
+        contributor,
+        contributorId,
+        workId,
+      })
+
+      Object.assign(existingByOrdinal, {
+        contributorId,
+        fullName: contributor.fullName,
+        firstName: contributor.firstName,
+        lastName: contributor.lastName,
+        contributionType: contributor.contributionType,
+        mainContribution: Boolean(contributor.mainContribution),
+      })
+
+      syncedContributors += 1
+      continue
+    }
+
     const exists = existing.contributions.some(
       item =>
         item.fullName === contributor.fullName &&
@@ -719,7 +836,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
       operation: 'update',
       connection,
       payload,
-      message: `Existing Thoth work updated successfully. Added ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
+      message: `Existing Thoth work updated successfully. Synced ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
     }
   }
 
@@ -749,7 +866,7 @@ const syncWork = async ({ book, title, subtitle, doi, dryRun }) => {
     operation: 'create',
     connection,
     payload,
-    message: `New Thoth work created successfully. Added ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
+    message: `New Thoth work created successfully. Synced ${relationshipSync.contributors} contributor(s) and ${relationshipSync.languages} language record(s).`,
   }
 }
 
