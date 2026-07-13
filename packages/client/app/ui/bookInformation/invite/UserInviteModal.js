@@ -58,19 +58,47 @@ const UserInviteModal = ({ bookId }) => {
 
   const bookTeamsAndInvites = bookTeams.concat(bookInvites)
 
-  const [searchForUsers] = useMutation(SEARCH_USERS)
-  const [addTeamMembers] = useMutation(ADD_TEAM_MEMBERS)
-  const [updateTeamMemberStatus] = useMutation(UPDATE_TEAM_MEMBER_STATUS)
-  const [removeTeamMember] = useMutation(REMOVE_TEAM_MEMBER)
+  const bookTeamsRefetch = {
+    query: GET_BOOK_TEAMS,
+    variables: {
+      filter: {
+        objectId: bookId,
+      },
+    },
+  }
 
-  const [sendInvitations] = useMutation(SEND_INVITATIONS, {
-    refetchQueries: [{ query: GET_INVITATIONS, variables: { bookId } }],
+  const invitationsRefetch = { query: GET_INVITATIONS, variables: { bookId } }
+
+  const [searchForUsers] = useMutation(SEARCH_USERS)
+
+  const [addTeamMembers] = useMutation(ADD_TEAM_MEMBERS, {
+    awaitRefetchQueries: true,
+    refetchQueries: [bookTeamsRefetch],
   })
 
-  const [updateInvitation] = useMutation(UPDATE_INVITATION)
+  const [updateTeamMemberStatus] = useMutation(UPDATE_TEAM_MEMBER_STATUS, {
+    awaitRefetchQueries: true,
+    refetchQueries: [bookTeamsRefetch],
+  })
+
+  const [removeTeamMember] = useMutation(REMOVE_TEAM_MEMBER, {
+    awaitRefetchQueries: true,
+    refetchQueries: [bookTeamsRefetch],
+  })
+
+  const [sendInvitations] = useMutation(SEND_INVITATIONS, {
+    awaitRefetchQueries: true,
+    refetchQueries: [invitationsRefetch],
+  })
+
+  const [updateInvitation] = useMutation(UPDATE_INVITATION, {
+    awaitRefetchQueries: true,
+    refetchQueries: [invitationsRefetch],
+  })
 
   const [deleteInvitation] = useMutation(DELETE_INVITATION, {
-    refetchQueries: [{ query: GET_INVITATIONS, variables: { bookId } }],
+    awaitRefetchQueries: true,
+    refetchQueries: [invitationsRefetch],
   })
 
   const { currentUser } = useCurrentUser()

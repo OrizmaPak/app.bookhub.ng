@@ -867,7 +867,12 @@ const BookMetadataForm = ({
   const handleFormUpdate = () => {
     setTimeout(() => {
       const currentValues = form.getFieldsValue(true)
-      const contributors = normalizeContributors(currentValues.contributors)
+
+      const contributors = mergeSharedContributors(
+        currentValues.contributors,
+        bookTeams,
+      )
+
       const languages = normalizeLanguages(currentValues.languages)
 
       const derivableMetadata = normalizeDerivableMetadata(
@@ -884,11 +889,13 @@ const BookMetadataForm = ({
 
       if (
         currentValues.authors !== resolvedAuthors ||
+        !contributorListsMatch(currentValues.contributors, contributors) ||
         currentValues.license !== derived.license ||
         currentValues.copyrightHolder !== derived.copyrightHolder
       ) {
         form.setFieldsValue({
           authors: resolvedAuthors,
+          contributors,
           ...derived,
         })
       }

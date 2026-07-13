@@ -12,7 +12,6 @@ import {
   CONTRIBUTOR_ROLE_OPTIONS,
   isValidOrcid,
   mergeSharedContributors,
-  normalizeContributors,
 } from '../metadata/BookMetadataForm'
 
 const Panel = styled.section`
@@ -172,7 +171,7 @@ const ShareContributorPanel = ({ bookId, bookTeams, canChangeMetadata }) => {
       return
     }
 
-    const normalized = normalizeContributors(contributors)
+    const normalized = mergeSharedContributors(contributors, bookTeams)
 
     try {
       setStatus('')
